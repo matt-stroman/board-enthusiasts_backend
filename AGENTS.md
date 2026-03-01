@@ -7,3 +7,6 @@
 - Keycloak owns authentication lifecycle behavior and brokered SSO provider linkage. PostgreSQL should only own application data and local projections keyed to Keycloak subjects.
 - Every existing and new web API endpoint must have thorough unit test(s) to cover the endpoint's typical and edge cases.
 - If code is found that is not covered, write applicable unit tests to cover it.
+- Work from a branch, commit the completed change set, push it, and open or update a PR.
+- Wait for the relevant GitHub workflow runs, inspect failures, and push fixes until the branch is green.
+- Merge to `main` only after the required checks pass.
