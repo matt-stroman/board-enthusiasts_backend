@@ -7,51 +7,121 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Board.ThirdPartyLibrary.Api.Titles;
 
+/// <summary>
+/// Service contract for public catalog queries and authenticated title management.
+/// </summary>
 internal interface ITitleService
 {
+    /// <summary>
+    /// Lists public catalog titles that are currently discoverable.
+    /// </summary>
+    /// <param name="organizationSlug">Optional organization route key filter.</param>
+    /// <param name="contentKind">Optional content kind filter.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Catalog title summaries visible to the caller.</returns>
     Task<IReadOnlyList<TitleSnapshot>> ListPublicTitlesAsync(
         string? organizationSlug,
         string? contentKind,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets a public catalog title by organization and title route key.
+    /// </summary>
+    /// <param name="organizationSlug">Organization route key.</param>
+    /// <param name="titleSlug">Title route key scoped to the organization.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The public catalog title when visible; otherwise <see langword="null" />.</returns>
     Task<TitleSnapshot?> GetPublicTitleAsync(
         string organizationSlug,
         string titleSlug,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists titles for an organization when the caller has a managing membership role.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="organizationId">Organization identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Mutation-style result describing access and data.</returns>
     Task<TitleListResult> ListOrganizationTitlesAsync(
         IEnumerable<Claim> claims,
         Guid organizationId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a new title and its initial metadata revision.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="organizationId">Owning organization identifier.</param>
+    /// <param name="command">Stable title fields and initial metadata.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Mutation result describing the outcome.</returns>
     Task<TitleMutationResult> CreateTitleAsync(
         IEnumerable<Claim> claims,
         Guid organizationId,
         CreateTitleCommand command,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets a title for an authorized developer caller.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="titleId">Title identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Mutation result describing the outcome.</returns>
     Task<TitleMutationResult> GetTitleAsync(
         IEnumerable<Claim> claims,
         Guid titleId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates stable title fields such as slug, lifecycle status, and visibility.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="titleId">Title identifier.</param>
+    /// <param name="command">Updated stable title fields.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Mutation result describing the outcome.</returns>
     Task<TitleMutationResult> UpdateTitleAsync(
         IEnumerable<Claim> claims,
         Guid titleId,
         UpdateTitleCommand command,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates the current metadata revision or creates a new revision when history must be preserved.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="titleId">Title identifier.</param>
+    /// <param name="command">Metadata fields to persist.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Mutation result describing the outcome.</returns>
     Task<TitleMutationResult> UpsertCurrentMetadataAsync(
         IEnumerable<Claim> claims,
         Guid titleId,
         UpsertTitleMetadataCommand command,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists all metadata revisions for a title when the caller is authorized to manage it.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="titleId">Title identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List result describing the outcome.</returns>
     Task<TitleMetadataVersionListResult> ListMetadataVersionsAsync(
         IEnumerable<Claim> claims,
         Guid titleId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Activates an existing metadata revision for a title.
+    /// </summary>
+    /// <param name="claims">Authenticated caller claims.</param>
+    /// <param name="titleId">Title identifier.</param>
+    /// <param name="revisionNumber">Revision number to activate.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Mutation result describing the outcome.</returns>
     Task<TitleMutationResult> ActivateMetadataVersionAsync(
         IEnumerable<Claim> claims,
         Guid titleId,
@@ -59,6 +129,11 @@ internal interface ITitleService
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Entity Framework-backed implementation of <see cref="ITitleService" />.
+/// </summary>
+/// <param name="dbContext">Application database context.</param>
+/// <param name="identityPersistenceService">Current-user projection helper.</param>
 internal sealed class TitleService(
     BoardLibraryDbContext dbContext,
     IIdentityPersistenceService identityPersistenceService) : ITitleService
@@ -537,6 +612,14 @@ internal sealed class TitleService(
     }
 }
 
+/// <summary>
+/// Command used to create a title with its initial metadata revision.
+/// </summary>
+/// <param name="Slug">Organization-scoped title route key.</param>
+/// <param name="ContentKind">Stable title content kind.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Public discoverability mode.</param>
+/// <param name="Metadata">Initial metadata payload.</param>
 internal sealed record CreateTitleCommand(
     string Slug,
     string ContentKind,
@@ -544,12 +627,31 @@ internal sealed record CreateTitleCommand(
     string Visibility,
     UpsertTitleMetadataCommand Metadata);
 
+/// <summary>
+/// Command used to update stable title fields.
+/// </summary>
+/// <param name="Slug">Organization-scoped title route key.</param>
+/// <param name="ContentKind">Stable title content kind.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Public discoverability mode.</param>
 internal sealed record UpdateTitleCommand(
     string Slug,
     string ContentKind,
     string LifecycleStatus,
     string Visibility);
 
+/// <summary>
+/// Command payload for updating or creating a title metadata revision.
+/// </summary>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum supported player count.</param>
+/// <param name="MaxPlayers">Maximum supported player count.</param>
+/// <param name="AgeRatingAuthority">Age rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
 internal sealed record UpsertTitleMetadataCommand(
     string DisplayName,
     string ShortDescription,
@@ -561,6 +663,28 @@ internal sealed record UpsertTitleMetadataCommand(
     string AgeRatingValue,
     int MinAgeYears);
 
+/// <summary>
+/// Flattened title projection used by endpoint DTO mapping.
+/// </summary>
+/// <param name="Id">Title identifier.</param>
+/// <param name="OrganizationId">Owning organization identifier.</param>
+/// <param name="OrganizationSlug">Owning organization route key.</param>
+/// <param name="Slug">Organization-scoped title route key.</param>
+/// <param name="ContentKind">Stable title content kind.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Public discoverability mode.</param>
+/// <param name="CurrentMetadataRevision">Currently active metadata revision number.</param>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description when requested.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum supported player count.</param>
+/// <param name="MaxPlayers">Maximum supported player count.</param>
+/// <param name="AgeRatingAuthority">Age rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="CreatedAtUtc">UTC creation timestamp when requested.</param>
+/// <param name="UpdatedAtUtc">UTC update timestamp when requested.</param>
 internal sealed record TitleSnapshot(
     Guid Id,
     Guid OrganizationId,
@@ -582,6 +706,23 @@ internal sealed record TitleSnapshot(
     DateTime? CreatedAtUtc,
     DateTime? UpdatedAtUtc);
 
+/// <summary>
+/// Projection of a title metadata revision for developer-facing responses.
+/// </summary>
+/// <param name="RevisionNumber">Per-title revision number.</param>
+/// <param name="IsCurrent">Whether the revision is currently active.</param>
+/// <param name="IsFrozen">Whether the revision is immutable.</param>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum supported player count.</param>
+/// <param name="MaxPlayers">Maximum supported player count.</param>
+/// <param name="AgeRatingAuthority">Age rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="CreatedAtUtc">UTC creation timestamp.</param>
+/// <param name="UpdatedAtUtc">UTC update timestamp.</param>
 internal sealed record TitleMetadataVersionSnapshot(
     int RevisionNumber,
     bool IsCurrent,
@@ -598,22 +739,45 @@ internal sealed record TitleMetadataVersionSnapshot(
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
 
+/// <summary>
+/// Result wrapper for title mutations and single-title lookups.
+/// </summary>
+/// <param name="Status">Operation status.</param>
+/// <param name="Title">Returned title snapshot when available.</param>
 internal sealed record TitleMutationResult(
     TitleMutationStatus Status,
     TitleSnapshot? Title = null);
 
+/// <summary>
+/// Result wrapper for organization title listings.
+/// </summary>
+/// <param name="Status">Operation status.</param>
+/// <param name="Titles">Returned title snapshots when available.</param>
 internal sealed record TitleListResult(
     TitleListStatus Status,
     IReadOnlyList<TitleSnapshot>? Titles = null);
 
+/// <summary>
+/// Result wrapper for metadata revision listings.
+/// </summary>
+/// <param name="Status">Operation status.</param>
+/// <param name="MetadataVersions">Returned metadata revisions when available.</param>
 internal sealed record TitleMetadataVersionListResult(
     TitleMetadataVersionListStatus Status,
     IReadOnlyList<TitleMetadataVersionSnapshot>? MetadataVersions = null);
 
+/// <summary>
+/// Internal helper representing authorized title access resolution.
+/// </summary>
+/// <param name="Status">Access result status.</param>
+/// <param name="Title">Resolved title when access succeeded.</param>
 internal sealed record TitleAccessResult(
     TitleAccessStatus Status,
     Title? Title = null);
 
+/// <summary>
+/// Outcome codes for title create/update/get operations.
+/// </summary>
 internal enum TitleMutationStatus
 {
     Success,
@@ -622,6 +786,9 @@ internal enum TitleMutationStatus
     Conflict
 }
 
+/// <summary>
+/// Outcome codes for organization title listings.
+/// </summary>
 internal enum TitleListStatus
 {
     Success,
@@ -629,6 +796,9 @@ internal enum TitleListStatus
     Forbidden
 }
 
+/// <summary>
+/// Outcome codes for metadata revision listings.
+/// </summary>
 internal enum TitleMetadataVersionListStatus
 {
     Success,
@@ -636,6 +806,9 @@ internal enum TitleMetadataVersionListStatus
     Forbidden
 }
 
+/// <summary>
+/// Internal outcome codes for title access resolution.
+/// </summary>
 internal enum TitleAccessStatus
 {
     Success,
@@ -643,23 +816,65 @@ internal enum TitleAccessStatus
     Forbidden
 }
 
+/// <summary>
+/// Known title lifecycle status codes.
+/// </summary>
 internal static class TitleLifecycleStatuses
 {
+    /// <summary>
+    /// Draft title visible only to the developer team.
+    /// </summary>
     public const string Draft = "draft";
+
+    /// <summary>
+    /// Testing title that may be public depending on visibility.
+    /// </summary>
     public const string Testing = "testing";
+
+    /// <summary>
+    /// Officially published title.
+    /// </summary>
     public const string Published = "published";
+
+    /// <summary>
+    /// Archived title retained for historical/management purposes.
+    /// </summary>
     public const string Archived = "archived";
 }
 
+/// <summary>
+/// Known title visibility codes.
+/// </summary>
 internal static class TitleVisibilities
 {
+    /// <summary>
+    /// Not publicly reachable.
+    /// </summary>
     public const string Private = "private";
+
+    /// <summary>
+    /// Publicly reachable by direct link but excluded from listings.
+    /// </summary>
     public const string Unlisted = "unlisted";
+
+    /// <summary>
+    /// Publicly reachable and included in listings.
+    /// </summary>
     public const string Listed = "listed";
 }
 
+/// <summary>
+/// Known title content kind codes.
+/// </summary>
 internal static class TitleContentKinds
 {
+    /// <summary>
+    /// Game title.
+    /// </summary>
     public const string Game = "game";
+
+    /// <summary>
+    /// App title.
+    /// </summary>
     public const string App = "app";
 }

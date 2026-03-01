@@ -4,8 +4,15 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Board.ThirdPartyLibrary.Api.Persistence.Configurations;
 
+/// <summary>
+/// Entity Framework configuration for the <see cref="TitleMetadataVersion" /> entity.
+/// </summary>
 internal sealed class TitleMetadataVersionConfiguration : IEntityTypeConfiguration<TitleMetadataVersion>
 {
+    /// <summary>
+    /// Configures the relational mapping for title metadata revisions.
+    /// </summary>
+    /// <param name="builder">Entity builder for <see cref="TitleMetadataVersion" />.</param>
     public void Configure(EntityTypeBuilder<TitleMetadataVersion> builder)
     {
         builder.ToTable("title_metadata_versions", tableBuilder =>

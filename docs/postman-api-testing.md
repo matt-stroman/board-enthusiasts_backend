@@ -1,14 +1,14 @@
 # Postman API Testing (Backend)
 
-This document explains how the backend Postman testing setup is organized and how to use it as a versioned API testing ground.
+This document explains how backend developers should work with the maintained API contract tests.
 
 ## Table of Contents
 
 - [Why Postman works well here](#why-postman-works-well-here)
-- [What is versioned in this repo](#what-is-versioned-in-this-repo)
+- [Where the Maintained Assets Live](#where-the-maintained-assets-live)
 - [Folder layout](#folder-layout)
 - [How to use in Postman](#how-to-use-in-postman)
-- [How to run via CLI (Newman)](#how-to-run-via-cli-newman)
+- [How to run via CLI](#how-to-run-via-cli)
 - [How to evolve this as endpoints are added](#how-to-evolve-this-as-endpoints-are-added)
 
 ## Why Postman works well here
@@ -25,30 +25,33 @@ Postman collections and environments are JSON files, which means they can be:
 
 This fits the project’s API-first direction well because the requests and assertions live next to the backend code and evolve with the endpoint contracts.
 
-## What is versioned in this repo
+## Where the Maintained Assets Live
 
-Backend-specific Postman assets are kept in the backend submodule:
+The maintained contract assets for current API behavior live in the `api` submodule:
 
-- Collection: [`backend/postman/collections/BoardThirdPartyLibrary.Api.postman_collection.json`](../postman/collections/BoardThirdPartyLibrary.Api.postman_collection.json)
-- Local environment: [`backend/postman/environments/local.postman_environment.json`](../postman/environments/local.postman_environment.json)
-- Postman asset readme: [`backend/postman/README.md`](../postman/README.md)
-- Optional CLI wrapper: [`backend/scripts/run-postman.ps1`](../scripts/run-postman.ps1)
+- OpenAPI spec: [`api/postman/specs/board-third-party-library-api.v1.openapi.yaml`](../../api/postman/specs/board-third-party-library-api.v1.openapi.yaml)
+- Contract test collection: [`api/postman/collections/board-third-party-library-api.contract-tests.postman_collection.json`](../../api/postman/collections/board-third-party-library-api.contract-tests.postman_collection.json)
+- Local environment template: [`api/postman/environments/board-third-party-library_local.postman_environment.json`](../../api/postman/environments/board-third-party-library_local.postman_environment.json)
+- API workflow guide: [`api/README.md`](../../api/README.md)
+
+The backend-local [`backend/postman/`](../postman/) folder is retained only as legacy health-check experimentation and is not the maintained source of truth for the current contract.
 
 ## Folder layout
 
 ```text
 backend/
-  postman/
-    collections/
-    environments/
+  postman/          # legacy/local-only backend Postman assets
   scripts/
   docs/
   planning/
+api/
+  postman/
 ```
 
 Separation rule applied:
 
-- backend-specific API testing assets live in the backend submodule
+- maintained API contract assets live in the `api` submodule
+- backend docs point developers at the shared contract workflow
 - root repo remains focused on cross-project orchestration
 
 ## How to use in Postman
@@ -57,41 +60,50 @@ Separation rule applied:
    - from repo root: `python ./scripts/dev.py up`
    - see CLI docs for alternatives/options: [`docs/developer-cli.md`](../../docs/developer-cli.md)
 2. Open Postman.
-3. Import the collection file.
-4. Import the local environment file.
+3. Import the contract collection from `api/postman/collections/`.
+4. Import the local environment template from `api/postman/environments/`.
 5. Select the local environment.
 6. Run individual requests or the full collection.
 
-The collection includes request-level tests for the current endpoints and uses environment variables to keep expectations data-driven.
+Important for live local runs:
 
-## How to run via CLI (Newman)
+- the committed local environment uses placeholders for `accessToken`, `organizationId`, `organizationSlug`, `titleId`, and `titleSlug`
+- authenticated success-path requests are skipped until those placeholders are replaced with real local values
+- this is expected and prevents false failures when developers only want public or unauthenticated smoke coverage
 
-If you have Node.js installed, you can run the collection from the terminal using `npx`:
+## How to run via CLI
 
-```powershell
-pwsh ./backend/scripts/run-postman.ps1
-```
-
-You can also run a single folder (when the collection grows):
+Use the root CLI from the repository root:
 
 ```powershell
-pwsh ./backend/scripts/run-postman.ps1 -Folder "Health"
+python ./scripts/dev.py api-test
 ```
 
-If `npx` is not available, install Node.js first (or run the collection in the Postman UI).
+If the backend is not already running, start it for the duration of the test run:
+
+```powershell
+python ./scripts/dev.py api-test --start-backend --skip-lint
+```
+
+Run mock-mode contract tests against a Postman mock:
+
+```powershell
+python ./scripts/dev.py api-test --base-url https://example.mock.pstmn.io --contract-execution-mode mock
+```
 
 ## How to evolve this as endpoints are added
 
 When you add new endpoints:
 
-1. Add a request to the collection.
-2. Add response assertions in the request’s Postman test script.
-3. Add/adjust environment variables instead of hardcoding environment-specific values.
-4. Update this doc or the Postman README only when the workflow changes.
+1. Add or update the OpenAPI contract first.
+2. Add or update the request in the maintained contract test collection.
+3. Add response assertions in the request’s Postman test script.
+4. Add or adjust environment variables instead of hardcoding environment-specific values.
+5. Update this doc or the API README only when the workflow changes.
 
 Recommended patterns:
 
-- Keep one collection per backend service/API boundary
-- Use folders by domain (`Catalog`, `Developer Integrations`, `Payments`, etc.)
-- Add both happy-path and error-path requests when endpoint behavior becomes more complex
+- Keep one maintained contract collection for the current API boundary
+- Use folders by domain (`Catalog`, `Organizations`, `Identity`, etc.)
+- Add both happy-path and error-path coverage when endpoint behavior becomes more complex
 - Keep shared secrets out of committed environments; use private local environment files instead

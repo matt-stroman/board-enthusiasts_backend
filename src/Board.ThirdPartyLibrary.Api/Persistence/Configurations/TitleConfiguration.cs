@@ -4,8 +4,15 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Board.ThirdPartyLibrary.Api.Persistence.Configurations;
 
+/// <summary>
+/// Entity Framework configuration for the <see cref="Title" /> entity.
+/// </summary>
 internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
 {
+    /// <summary>
+    /// Configures the relational mapping for stable catalog titles.
+    /// </summary>
+    /// <param name="builder">Entity builder for <see cref="Title" />.</param>
     public void Configure(EntityTypeBuilder<Title> builder)
     {
         builder.ToTable("titles", tableBuilder =>
