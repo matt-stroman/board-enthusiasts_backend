@@ -26,6 +26,18 @@ It is intentionally focused on:
 
 It is **not** intended to duplicate every column/constraint from EF Core migrations once implementation begins.
 
+## Current Status
+
+As of March 1, 2026:
+
+- the backend implements a Keycloak-backed API/authentication foundation
+- the backend does not yet implement EF Core persistence, migrations, or the application-owned relational domain model
+- the wave definitions below are planned schema implementation waves, not already-completed backend functionality
+
+Important alignment rule:
+
+- do not expose persistence-backed endpoints such as `/identity/me/board-profile` in the maintained contract until the corresponding migration, backend tests, and implementation are being delivered together
+
 ## Single Source of Truth Strategy
 
 To minimize duplication and drift, the project uses a single source of truth per layer:
@@ -254,6 +266,13 @@ This can extend the existing Docker/Testcontainers integration test setup.
 ### API contract alignment
 
 Keep using Postman contract tests for client-facing behavior.
+
+For new externally visible behavior, follow this order:
+
+1. add failing contract coverage first
+2. add failing backend tests
+3. implement persistence and endpoint behavior
+4. keep the maintained contract limited to implemented or actively in-flight behavior
 
 The schema does not need a duplicate column-by-column doc as long as:
 

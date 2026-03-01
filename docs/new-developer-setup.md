@@ -99,6 +99,7 @@ Current persistence note:
 
 - PostgreSQL is currently used for backend readiness and upcoming application-owned domain schema work.
 - Keycloak owns authentication data, platform roles, and login/account lifecycle flows.
+- The maintained current API surface does not yet include persisted Board profile CRUD; that returns in the contract only when the persistence wave is implemented with tests.
 - See [`backend/docs/auth-data-ownership.md`](auth-data-ownership.md) for the current data ownership boundary.
 
 ## Common Commands

@@ -310,7 +310,7 @@ public sealed class ApiEndpointTests
                                 new Claim(ClaimTypes.Role, "developer")),
                             tokenType: "Bearer",
                             expiresInSeconds: 300,
-                            scope: "openid profile email offline_access",
+                            scope: "openid profile email",
                             refreshToken: "refresh-token",
                             idToken: "id-token")));
             });

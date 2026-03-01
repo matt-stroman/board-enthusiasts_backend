@@ -22,11 +22,12 @@ Use this document when deciding whether new identity-related data belongs in:
 
 ## Current State
 
-Current Wave 1 behavior:
+Current implemented foundation behavior:
 
 - Keycloak hosts login and self-registration.
 - Keycloak owns credentials, email verification, external identity-provider linkage, session/token lifecycle, and platform role assignment.
 - The backend validates Keycloak-issued bearer tokens and reads platform roles from JWT claims.
+- Keycloak is also the intended broker for future Google, Facebook, Steam, Epic Games, and similar SSO providers.
 - PostgreSQL is not currently the source of truth for authentication data.
 
 The backend does not yet have EF Core migrations or an implemented relational domain schema. This document defines the intended boundary before that schema work begins.
@@ -54,6 +55,8 @@ PostgreSQL remains the source of truth for application-owned domain data, includ
 - payment, entitlement, and install-delivery data when those areas are implemented
 - optional Board profile linkage/cache owned by this application
 - an application user projection, once persistence is introduced, for linking domain records to a Keycloak subject
+
+Board profile persistence is planned application data, but it is not part of the current implemented API surface yet.
 
 ## Schema Implications
 

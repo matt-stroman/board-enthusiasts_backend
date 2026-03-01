@@ -2,6 +2,11 @@
 
 A backend service for third party developers for the Board ecosystem to use to register and share their games with the public.
 
+Current implementation status:
+
+- implemented now: health endpoints plus Keycloak-backed identity/auth foundation
+- planned next: EF Core schema, migrations, and application-owned persistence waves
+
 ## Table of Contents
 
 - [Local development (Phase 2)](#local-development-phase-2)
@@ -79,6 +84,7 @@ Authentication and platform-role state are intentionally excluded from the appli
 See:
 
 - [`backend/planning/mvp-schema-implementation-plan.md`](planning/mvp-schema-implementation-plan.md)
+- [`planning/current-state-and-wave-plan.md`](../planning/current-state-and-wave-plan.md)
 
 ## API Testing (Postman)
 
