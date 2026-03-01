@@ -5,12 +5,12 @@ A backend service for third party developers for the Board ecosystem to use to r
 ## Table of Contents
 
 - [Local development (Phase 2)](#local-development-phase-2)
-- [Schema Planning](#schema-planning)
+- [Planning](#planning)
 - [API Testing (Postman)](#api-testing-postman)
 
 ## Local development (Phase 2)
 
-Prereq: local PostgreSQL running (see [`backend/docker-compose.yml`](docker-compose.yml)).
+Prereq: local PostgreSQL and Keycloak running (see [`backend/docker-compose.yml`](docker-compose.yml)).
 
 Recommended (repo root, automated):
 
@@ -42,20 +42,43 @@ Verify endpoints:
 ```bash
 curl http://localhost:5085/health/live
 curl http://localhost:5085/health/ready
+curl http://localhost:5085/identity/auth/config
 ```
 
 Notes:
 
-- `appsettings.Development.json` is preconfigured for the local Postgres container from Phase 1.
+- `appsettings.Development.json` is preconfigured for the local Postgres container and local Keycloak realm import.
 - Override with env var `ConnectionStrings__BoardLibrary` if needed.
+- Override Keycloak settings with `Authentication__Keycloak__*` environment variables if needed.
+- Authentication data ownership is documented in [`backend/docs/auth-data-ownership.md`](docs/auth-data-ownership.md).
 
-## Schema Planning
+Local Keycloak bootstrap defaults:
+
+- Keycloak admin console: `http://localhost:8080/admin/`
+- Keycloak bootstrap admin: `admin` / `admin`
+- Seeded realm user for login testing: `local-admin` / `ChangeMe!123`
+
+To verify the browser login flow locally, open:
+
+```bash
+http://localhost:5085/identity/auth/login
+```
+
+Keycloak will host the login/registration UI and redirect back to:
+
+```bash
+http://localhost:5085/identity/auth/callback
+```
+
+## Planning
 
 Backend schema implementation is planned as EF Core code-first with migrations as the database schema source of truth.
 
+Authentication and platform-role state are intentionally excluded from the application database source of truth and remain Keycloak-owned.
+
 See:
 
-- [`backend/docs/mvp-schema-implementation-plan.md`](docs/mvp-schema-implementation-plan.md)
+- [`backend/planning/mvp-schema-implementation-plan.md`](planning/mvp-schema-implementation-plan.md)
 
 ## API Testing (Postman)
 

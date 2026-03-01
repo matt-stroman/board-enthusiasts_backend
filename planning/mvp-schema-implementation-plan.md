@@ -32,21 +32,22 @@ To minimize duplication and drift, the project uses a single source of truth per
 
 - API contract SSOT: OpenAPI definition in the `api` submodule (`api/postman/specs/...`)
 - Database schema SSOT: EF Core entity configurations + EF Core migrations in `backend/`
+- Authentication/identity-provider SSOT: Keycloak realm configuration and realm import in `backend/keycloak/import/`
 - Domain behavior SSOT: backend code and automated tests
 
 Implications:
 
 - Use docs for decisions/rationale and migration sequencing.
 - Use EF Core migrations for exact table/column/index/constraint definitions.
+- Do not model Keycloak-owned auth state as a second source of truth in PostgreSQL.
 - Avoid maintaining a second exhaustive schema document after migrations exist.
 
 ## Scope (MVP)
 
 Included now:
 
-- unified `users` model (developers and players)
-- platform roles (`player`, `developer`, `admin`, `moderator`) via many-to-many user roles
-- email/password and OAuth-ready identity tables
+- application-owned `users` projection linked to Keycloak subjects
+- Keycloak-backed platform roles (`player`, `developer`, `admin`, `moderator`) consumed from JWT claims rather than persisted as primary auth data in PostgreSQL
 - optional Board profile linkage (reference/cache only; Board remains source of truth)
 - organizations and memberships
 - titles and versioned metadata
@@ -56,6 +57,7 @@ Included now:
 
 Deferred:
 
+- local projection tables for platform roles unless a concrete reporting/query need appears
 - payments / checkout / orders / entitlements
 - full taxonomy normalization (genre taxonomy, etc.)
 - advanced moderation workflows
@@ -93,26 +95,21 @@ If bounded contexts later justify separation (`auth`, `catalog`, etc.), namespac
 
 The order below is designed to reduce circular FK complexity and allow small, reviewable migrations.
 
-### Wave 1: Identity Core + Platform Roles
+### Wave 1: Application Identity Projection + Board Profile
 
 Tables:
 
 - `users`
-- `roles`
-- `user_roles`
-- `user_email_addresses`
-- `user_password_credentials`
-- `user_external_identities`
 - `user_board_profiles`
 
 Key notes:
 
-- `users` is the stable identity root (`users.id` is the real identity key).
-- Email is mutable and modeled separately in `user_email_addresses`.
-- `user_password_credentials` supports local auth without forcing password fields onto `users`.
-- For MVP, login/refresh/logout/password-recovery support may use fields on `user_password_credentials` (or stateless token strategies) without introducing separate session/recovery-token tables yet; add dedicated tables later only if needed.
-- `user_external_identities` supports OAuth provider links (`github`, `steam`, `epic`, etc.).
-- Board profile linkage/cache is modeled in `user_board_profiles` (not as a `user_external_identities` provider row).
+- `users` is an application-owned identity projection, not a local credential store.
+- `users` should include a unique immutable `keycloak_subject` (or equivalent) so application-owned records can reference a Keycloak identity safely.
+- Keycloak owns passwords, email verification, external identity-provider links, and platform role assignment.
+- Cached Keycloak profile fields in `users` should be optional and treated as non-authoritative snapshots only.
+- Platform roles remain Keycloak-owned and are enforced from bearer-token claims rather than `roles` / `user_roles` tables in PostgreSQL.
+- Board profile linkage/cache is modeled in `user_board_profiles`.
 - `user_board_profiles` is optional/non-authoritative.
 
 ### Wave 2: Organizations + Memberships
@@ -125,7 +122,7 @@ Tables:
 Key notes:
 
 - `organization_memberships.role` stays as a simple scoped role field (`owner`, `admin`, `editor`) for MVP.
-- Global platform roles remain in `roles` / `user_roles`.
+- Global platform roles remain Keycloak-owned; organization membership roles are the PostgreSQL-owned scoped authorization concept.
 
 ### Wave 3: Titles + Versioned Metadata
 
@@ -199,17 +196,17 @@ Prefer string `code`/`status` fields over DB enums for MVP:
 
 Use check constraints where the allowed set is stable enough for MVP.
 
-### Email model (mutable by design)
+### Identity projection model
 
-`users` does not own a single immutable email field.
+`users` is not a local authentication model.
 
 Instead:
 
-- `user_email_addresses` stores one-to-many email records
-- one active primary email per user
-- email changes are implemented by adding/verifying/switching primary email rows
+- Keycloak owns mutable account/login fields
+- PostgreSQL stores the application's stable link to a Keycloak subject
+- any cached display/email fields in `users` are denormalized snapshots only
 
-This prevents cascading changes to other tables and supports a low-friction user experience.
+This keeps authentication concerns outside the application database while preserving a durable foreign key anchor for domain records.
 
 ### JSON configuration
 
@@ -232,21 +229,15 @@ This provides in-database documentation without duplicating schema docs.
 
 ## Seed Data Strategy
 
-Seed via EF Core migrations (not runtime ad hoc scripts) for system-owned static data.
+Seed via EF Core migrations (not runtime ad hoc scripts) only for PostgreSQL-owned static application data.
 
-Initial seed set:
+Current guidance:
 
-- `roles`
-  - `player`
-  - `developer`
-  - `admin`
-  - `moderator`
+- do not seed Keycloak-owned platform roles in PostgreSQL migrations
+- do not seed auth users in PostgreSQL migrations
+- seed platform roles and the initial admin user through the Keycloak realm import
 
-Seed guidance:
-
-- Use stable UUIDs for seeded role IDs (hardcoded constants in migration/config)
-- Keep role `code` values immutable once published
-- Do not seed user accounts in migrations
+If PostgreSQL-owned lookup/reference data is introduced later, keep that seed path separate from Keycloak bootstrap data.
 
 ## Testing Strategy
 
@@ -255,8 +246,8 @@ Seed guidance:
 Add backend integration coverage for persistence once EF Core is introduced:
 
 - database can apply all migrations to a fresh Postgres instance
-- seed roles exist after migration
-- key unique constraints behave as expected (example: duplicate role code rejected)
+- key unique constraints behave as expected (example: duplicate `users.keycloak_subject` rejected)
+- Board profile linkage constraints behave as expected
 
 This can extend the existing Docker/Testcontainers integration test setup.
 
@@ -287,10 +278,10 @@ Planned next backend work items (code-first):
 
 1. Add EF Core + Npgsql EF provider packages to the API project
 2. Add application `DbContext` and persistence registration
-3. Implement Wave 1 entity types + configurations
+3. Implement Wave 1 entity types + configurations for `users` and `user_board_profiles`
 4. Generate initial migration (Wave 1)
-5. Add seed roles in migration/config
-6. Add integration test that applies migrations and verifies seeded roles
+5. Add integration tests that apply migrations and verify identity-projection constraints
+6. Keep Keycloak realm import aligned with the backend platform role catalog
 7. Implement Wave 2 and Wave 3 incrementally
 
 This plan keeps database schema definition fully reproducible from code while minimizing documentation duplication.

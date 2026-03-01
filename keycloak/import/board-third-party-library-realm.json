@@ -1,0 +1,75 @@
+{
+  "realm": "board-third-party-library",
+  "enabled": true,
+  "displayName": "Board Third Party Library",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "verifyEmail": true,
+  "rememberMe": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "player",
+        "description": "Player role for Board Third Party Library users."
+      },
+      {
+        "name": "developer",
+        "description": "Developer role for Board Third Party Library users."
+      },
+      {
+        "name": "admin",
+        "description": "Administrator role for Board Third Party Library users."
+      },
+      {
+        "name": "moderator",
+        "description": "Moderator role for Board Third Party Library users."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "board-third-party-library-backend",
+      "name": "Board Third Party Library Backend",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "board-third-party-library-backend-secret",
+      "redirectUris": [
+        "http://localhost:5085/identity/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:5085"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "local-admin",
+      "enabled": true,
+      "email": "admin@boardtpl.local",
+      "emailVerified": true,
+      "firstName": "Local",
+      "lastName": "Admin",
+      "realmRoles": [
+        "player",
+        "developer",
+        "admin"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "ChangeMe!123",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

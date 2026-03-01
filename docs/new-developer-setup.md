@@ -11,13 +11,6 @@ This guide is for getting a new developer to a working local backend environment
 - [Manual Equivalents (If You Prefer Not to Use Scripts)](#manual-equivalents-if-you-prefer-not-to-use-scripts)
 - [Project Layout (Current)](#project-layout-current)
 - [Troubleshooting](#troubleshooting)
-- [Next Setup Docs to Add (Recommended)](#next-setup-docs-to-add-recommended)
-
-Current repo state:
-
-- Backend is scaffolded and runnable (`ASP.NET Core + PostgreSQL`)
-- Frontend MAUI client direction is documented, but the MAUI app is not scaffolded yet
-- Developer/player experiences are intended to be **API-first**
 
 ## Prerequisites
 
@@ -52,7 +45,7 @@ Recommended workflow in VS Code:
 
 The configured pre-launch tasks will:
 
-- start/reuse the `board_tpl_postgres` container
+- start/reuse the `board_tpl_postgres` and `board_tpl_keycloak` containers
 - build the backend in the selected configuration
 - launch the API in the integrated terminal
 
@@ -86,7 +79,7 @@ python ./scripts/dev.py up
 What this does:
 
 - `bootstrap`: initializes git submodules (if needed) and restores the backend solution
-- `up`: starts local PostgreSQL (or reuses an existing `board_tpl_postgres` container) and runs the backend API
+- `up`: starts local PostgreSQL and Keycloak (or reuses existing `board_tpl_postgres` / `board_tpl_keycloak` containers) and runs the backend API
 - together, these commands provide a reliable first-time setup + startup flow
 - for convenience, `python ./scripts/dev.py up --bootstrap` is supported
 
@@ -99,7 +92,14 @@ When the API is running, verify:
 ```powershell
 curl http://localhost:5085/health/live
 curl http://localhost:5085/health/ready
+curl http://localhost:5085/identity/auth/config
 ```
+
+Current persistence note:
+
+- PostgreSQL is currently used for backend readiness and upcoming application-owned domain schema work.
+- Keycloak owns authentication data, platform roles, and login/account lifecycle flows.
+- See [`backend/docs/auth-data-ownership.md`](auth-data-ownership.md) for the current data ownership boundary.
 
 ## Common Commands
 
@@ -141,6 +141,7 @@ Start PostgreSQL:
 
 ```powershell
 docker compose -f ./backend/docker-compose.yml up -d postgres
+docker compose -f ./backend/docker-compose.yml up -d keycloak
 ```
 
 Run backend API:
@@ -153,8 +154,10 @@ dotnet run --project ./backend/src/Board.ThirdPartyLibrary.Api/Board.ThirdPartyL
 
 - `backend/`: ASP.NET Core API, tests, backend CI workflow
 - `frontend/`: frontend submodule (MAUI client work planned)
-- [`docs/`](../../docs): project-wide technical direction docs (root repo)
-- [`backend/docs/`](../docs): backend-specific setup docs (this submodule)
+- [`docs/`](../../docs): project-wide developer documentation (root repo)
+- [`planning/`](../../planning): project-wide planning and recommendation artifacts (root repo)
+- [`backend/docs/`](../docs): backend-specific setup and usage docs (this submodule)
+- [`backend/planning/`](../planning): backend planning and implementation-tracking artifacts
 - [`backend/postman/`](../postman): versioned Postman collections/environments for API endpoint testing
 - [`scripts/`](../../scripts): root-level developer orchestration scripts
 
@@ -173,6 +176,7 @@ Check container logs:
 
 ```powershell
 docker logs board_tpl_postgres
+docker logs board_tpl_keycloak
 ```
 
 ### Script says a command is missing
@@ -197,6 +201,22 @@ docker rm board_tpl_postgres
 python ./scripts/dev.py up
 ```
 
+### Local Keycloak defaults
+
+The local compose file imports a development realm for repeatable auth testing.
+
+- Keycloak admin console: `http://localhost:8080/admin/`
+- Keycloak bootstrap admin credentials: `admin` / `admin`
+- Seeded local realm user credentials: `local-admin` / `ChangeMe!123`
+
+To exercise the backend login flow locally:
+
+1. Start the stack with `python ./scripts/dev.py up`.
+2. Open `http://localhost:5085/identity/auth/login` in a browser.
+3. Sign in with the seeded realm user, or register a new user from the hosted Keycloak screen.
+4. Confirm the callback response at `http://localhost:5085/identity/auth/callback`.
+5. Use the returned access token against `GET /identity/me`.
+
 ### VS Code warns about HTTPS development certificate
 
 This is expected for .NET development tooling on some machines.
@@ -204,17 +224,9 @@ This is expected for .NET development tooling on some machines.
 - Approve the prompt, or run `dotnet dev-certs https --trust` manually once.
 - You can also run the VS Code task: `tpl: trust dotnet dev certificate`.
 
-## Next Setup Docs to Add (Recommended)
-
-As the project evolves, add dedicated docs for:
-
-- MAUI client local setup (Android emulator/device, workloads, SDK tools)
-- API auth/local identity provider setup
-- Database migrations workflow
-- Provider sandbox credentials (payments/content hosts) for integration testing
-
 See also:
 
-- [Technology direction (`docs/technology-fit-recommendation.md`)](../../docs/technology-fit-recommendation.md)
+- [Auth and data ownership (`backend/docs/auth-data-ownership.md`)](auth-data-ownership.md)
+- [Technology direction (`planning/technology-fit-recommendation.md`)](../../planning/technology-fit-recommendation.md)
 - [Phase 1 Postgres setup (`backend/docs/backend-phase-1-postgres-setup.md`)](backend-phase-1-postgres-setup.md)
 - [Postman API testing (`backend/docs/postman-api-testing.md`)](postman-api-testing.md)

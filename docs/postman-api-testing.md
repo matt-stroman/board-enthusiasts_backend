@@ -43,6 +43,7 @@ backend/
     environments/
   scripts/
   docs/
+  planning/
 ```
 
 Separation rule applied:
