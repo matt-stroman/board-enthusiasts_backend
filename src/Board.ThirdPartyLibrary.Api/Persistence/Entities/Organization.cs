@@ -17,4 +17,6 @@ internal sealed class Organization
     public DateTime UpdatedAtUtc { get; set; }
 
     public ICollection<OrganizationMembership> Memberships { get; set; } = [];
+
+    public ICollection<Title> Titles { get; set; } = [];
 }

@@ -14,6 +14,10 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
 
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
 
+    public DbSet<Title> Titles => Set<Title>();
+
+    public DbSet<TitleMetadataVersion> TitleMetadataVersions => Set<TitleMetadataVersion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BoardLibraryDbContext).Assembly);

@@ -33,7 +33,8 @@ As of March 1, 2026:
 - the backend implements a Keycloak-backed API/authentication foundation
 - the backend implements Wave 1 EF Core persistence, migrations, and the application-owned identity projection plus Board profile linkage
 - the backend now also implements Wave 2 organizations and memberships
-- the later wave definitions below are planned schema implementation waves, while Waves 1 and 2 are now the implemented baseline
+- the backend now also implements Wave 3 titles and versioned metadata
+- the later wave definitions below are planned schema implementation waves, while Waves 1 through 3 are now the implemented baseline
 
 Important alignment rule:
 
@@ -141,6 +142,8 @@ Key notes:
 
 ### Wave 3: Titles + Versioned Metadata
 
+Status: implemented on March 1, 2026.
+
 Tables:
 
 - `titles`
@@ -155,6 +158,12 @@ Key notes:
 - `titles` stores stable identity + ownership + publication status.
 - `title_metadata_versions` stores versioned player-facing metadata snapshots.
 - Keep `genre_display` for MVP; defer normalized genre taxonomy.
+- `titles.lifecycle_status` now uses `draft`, `testing`, `published`, and `archived`.
+- `titles.visibility` is separate from lifecycle and now uses `private`, `unlisted`, and `listed`.
+- public routing is aligned to storefront-style route keys: `/catalog/{organizationSlug}/{titleSlug}`.
+- `title_metadata_versions` persists `display_name`, `short_description`, `description`, `genre_display`, structured player counts, and age-rating authority/value plus `min_age_years`.
+- `titles.current_metadata_version_id` is constrained so a title can only point to one of its own metadata rows.
+- metadata revisions remain mutable only while the title is in `draft` and the current revision is unfrozen; once the title leaves `draft`, revisions are preserved as immutable history.
 
 ### Wave 4: Media + Releases + Artifacts
 
@@ -299,9 +308,9 @@ Recommended developer workflow (schema changes):
 Planned next backend work items (code-first):
 
 1. Keep Keycloak realm import aligned with the backend platform role catalog and future brokered SSO providers
-2. Implement Wave 3 entity types + configurations for `titles` and `title_metadata_versions`
-3. Generate the Wave 3 migration
-4. Add integration tests for title and metadata-version constraints and behaviors
-5. Implement Wave 4 incrementally after Wave 3 is stable
+2. Implement Wave 4 entity types + configurations for `title_media_assets`, `title_releases`, and `release_artifacts`
+3. Generate the Wave 4 migration
+4. Add integration tests for media, release, artifact, and semver constraints and behaviors
+5. Implement Wave 5 incrementally after Wave 4 is stable
 
 This plan keeps database schema definition fully reproducible from code while minimizing documentation duplication.

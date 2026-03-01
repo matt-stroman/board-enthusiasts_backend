@@ -5,6 +5,7 @@ using Board.ThirdPartyLibrary.Api.HealthChecks;
 using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Organizations;
 using Board.ThirdPartyLibrary.Api.Persistence;
+using Board.ThirdPartyLibrary.Api.Titles;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -40,6 +41,7 @@ builder.Services.AddDbContext<BoardLibraryDbContext>(options =>
         : "Host=invalid;Port=5432;Database=board_tpl_unconfigured;Username=invalid;Password=invalid"));
 builder.Services.AddScoped<IIdentityPersistenceService, IdentityPersistenceService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<ITitleService, TitleService>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -89,6 +91,7 @@ app.UseAuthorization();
 
 app.MapIdentityEndpoints();
 app.MapOrganizationEndpoints();
+app.MapTitleEndpoints();
 
 app.Run();
 

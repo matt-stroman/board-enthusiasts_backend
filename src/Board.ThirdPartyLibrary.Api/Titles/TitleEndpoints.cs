@@ -1,0 +1,655 @@
+using System.Security.Claims;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
+
+namespace Board.ThirdPartyLibrary.Api.Titles;
+
+/// <summary>
+/// Maps title and catalog endpoints.
+/// </summary>
+internal static partial class TitleEndpoints
+{
+    private static readonly Regex SlugRegex = SlugPattern();
+
+    /// <summary>
+    /// Maps title and catalog endpoints to the application.
+    /// </summary>
+    /// <param name="app">Route builder.</param>
+    /// <returns>The route builder.</returns>
+    public static IEndpointRouteBuilder MapTitleEndpoints(this IEndpointRouteBuilder app)
+    {
+        var catalogGroup = app.MapGroup("/catalog");
+        var developerOrganizationGroup = app.MapGroup("/developer/organizations");
+        var developerTitleGroup = app.MapGroup("/developer/titles");
+
+        catalogGroup.MapGet("/", async (
+            string? organizationSlug,
+            string? contentKind,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var titles = await titleService.ListPublicTitlesAsync(
+                organizationSlug?.Trim().ToLowerInvariant(),
+                NormalizeCode(contentKind),
+                cancellationToken);
+
+            return Results.Ok(new CatalogTitleListResponse(titles.Select(MapTitleSummary).ToArray()));
+        });
+
+        catalogGroup.MapGet("/{organizationSlug}/{titleSlug}", async (
+            string organizationSlug,
+            string titleSlug,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var title = await titleService.GetPublicTitleAsync(
+                organizationSlug.Trim().ToLowerInvariant(),
+                titleSlug.Trim().ToLowerInvariant(),
+                cancellationToken);
+
+            return title is null
+                ? Results.NotFound()
+                : Results.Ok(new CatalogTitleResponse(MapTitleDetail(title)));
+        });
+
+        developerOrganizationGroup.MapGet("/{organizationId:guid}/titles", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid organizationId,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await titleService.ListOrganizationTitlesAsync(user.Claims, organizationId, cancellationToken);
+            return result.Status switch
+            {
+                TitleListStatus.Success => Results.Ok(new DeveloperTitleListResponse(result.Titles!.Select(MapTitleSummary).ToArray())),
+                TitleListStatus.NotFound => Results.NotFound(),
+                TitleListStatus.Forbidden => Results.Forbid(),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        developerOrganizationGroup.MapPost("/{organizationId:guid}/titles", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid organizationId,
+            CreateTitleRequest request,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var validationErrors = ValidateCreateTitleRequest(request);
+            if (validationErrors.Count > 0)
+            {
+                return Results.ValidationProblem(validationErrors, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var result = await titleService.CreateTitleAsync(
+                user.Claims,
+                organizationId,
+                new CreateTitleCommand(
+                    NormalizeSlug(request.Slug),
+                    NormalizeCode(request.ContentKind)!,
+                    NormalizeCode(request.LifecycleStatus)!,
+                    NormalizeCode(request.Visibility)!,
+                    MapMetadataCommand(request.Metadata)),
+                cancellationToken);
+
+            return result.Status switch
+            {
+                TitleMutationStatus.Success => Results.Created(
+                    $"/catalog/{result.Title!.OrganizationSlug}/{result.Title.Slug}",
+                    new DeveloperTitleResponse(MapTitleDetail(result.Title))),
+                TitleMutationStatus.NotFound => Results.NotFound(),
+                TitleMutationStatus.Forbidden => Results.Forbid(),
+                TitleMutationStatus.Conflict => CreateProblemResult(
+                    StatusCodes.Status409Conflict,
+                    "Title already exists",
+                    "The supplied title slug is already in use within the organization.",
+                    "title_slug_conflict"),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        developerTitleGroup.MapGet("/{titleId:guid}", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid titleId,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await titleService.GetTitleAsync(user.Claims, titleId, cancellationToken);
+            return result.Status switch
+            {
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.NotFound => Results.NotFound(),
+                TitleMutationStatus.Forbidden => Results.Forbid(),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        developerTitleGroup.MapPut("/{titleId:guid}", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid titleId,
+            UpdateTitleRequest request,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var validationErrors = ValidateUpdateTitleRequest(request);
+            if (validationErrors.Count > 0)
+            {
+                return Results.ValidationProblem(validationErrors, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var result = await titleService.UpdateTitleAsync(
+                user.Claims,
+                titleId,
+                new UpdateTitleCommand(
+                    NormalizeSlug(request.Slug),
+                    NormalizeCode(request.ContentKind)!,
+                    NormalizeCode(request.LifecycleStatus)!,
+                    NormalizeCode(request.Visibility)!),
+                cancellationToken);
+
+            return result.Status switch
+            {
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.NotFound => Results.NotFound(),
+                TitleMutationStatus.Forbidden => Results.Forbid(),
+                TitleMutationStatus.Conflict => CreateProblemResult(
+                    StatusCodes.Status409Conflict,
+                    "Title already exists",
+                    "The supplied title slug is already in use within the organization.",
+                    "title_slug_conflict"),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        developerTitleGroup.MapPut("/{titleId:guid}/metadata/current", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid titleId,
+            UpsertTitleMetadataRequest request,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var validationErrors = ValidateMetadataRequest(request);
+            if (validationErrors.Count > 0)
+            {
+                return Results.ValidationProblem(validationErrors, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var result = await titleService.UpsertCurrentMetadataAsync(
+                user.Claims,
+                titleId,
+                MapMetadataCommand(request),
+                cancellationToken);
+
+            return result.Status switch
+            {
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.NotFound => Results.NotFound(),
+                TitleMutationStatus.Forbidden => Results.Forbid(),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        developerTitleGroup.MapGet("/{titleId:guid}/metadata-versions", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid titleId,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await titleService.ListMetadataVersionsAsync(user.Claims, titleId, cancellationToken);
+            return result.Status switch
+            {
+                TitleMetadataVersionListStatus.Success => Results.Ok(
+                    new TitleMetadataVersionListResponse(result.MetadataVersions!.Select(MapMetadataVersion).ToArray())),
+                TitleMetadataVersionListStatus.NotFound => Results.NotFound(),
+                TitleMetadataVersionListStatus.Forbidden => Results.Forbid(),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        developerTitleGroup.MapPost("/{titleId:guid}/metadata-versions/{revisionNumber:int}/activate", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid titleId,
+            int revisionNumber,
+            ITitleService titleService,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await titleService.ActivateMetadataVersionAsync(user.Claims, titleId, revisionNumber, cancellationToken);
+            return result.Status switch
+            {
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.NotFound => Results.NotFound(),
+                TitleMutationStatus.Forbidden => Results.Forbid(),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
+        return app;
+    }
+
+    private static Dictionary<string, string[]> ValidateCreateTitleRequest(CreateTitleRequest request)
+    {
+        var errors = ValidateTitleRequest(request);
+        foreach (var pair in ValidateMetadataRequest(request.Metadata))
+        {
+            errors[pair.Key] = pair.Value;
+        }
+
+        return errors;
+    }
+
+    private static Dictionary<string, string[]> ValidateUpdateTitleRequest(UpdateTitleRequest request) =>
+        ValidateTitleRequest(request);
+
+    private static Dictionary<string, string[]> ValidateTitleRequest(ITitleRequest request)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(request.Slug))
+        {
+            errors["slug"] = ["Slug is required."];
+        }
+        else if (!SlugRegex.IsMatch(NormalizeSlug(request.Slug)))
+        {
+            errors["slug"] = ["Slug must contain only lowercase letters, numbers, and single hyphen separators."];
+        }
+
+        var normalizedContentKind = NormalizeCode(request.ContentKind);
+        if (normalizedContentKind is not (TitleContentKinds.Game or TitleContentKinds.App))
+        {
+            errors["contentKind"] = ["Content kind must be one of: game, app."];
+        }
+
+        var normalizedLifecycleStatus = NormalizeCode(request.LifecycleStatus);
+        if (normalizedLifecycleStatus is not
+            (TitleLifecycleStatuses.Draft or TitleLifecycleStatuses.Testing or TitleLifecycleStatuses.Published or TitleLifecycleStatuses.Archived))
+        {
+            errors["lifecycleStatus"] = ["Lifecycle status must be one of: draft, testing, published, archived."];
+        }
+
+        var normalizedVisibility = NormalizeCode(request.Visibility);
+        if (normalizedVisibility is not
+            (TitleVisibilities.Private or TitleVisibilities.Unlisted or TitleVisibilities.Listed))
+        {
+            errors["visibility"] = ["Visibility must be one of: private, unlisted, listed."];
+        }
+        else if (normalizedLifecycleStatus == TitleLifecycleStatuses.Draft && normalizedVisibility != TitleVisibilities.Private)
+        {
+            errors["visibility"] = ["Draft titles must use private visibility."];
+        }
+
+        return errors;
+    }
+
+    private static Dictionary<string, string[]> ValidateMetadataRequest(UpsertTitleMetadataRequest request)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            errors["metadata.displayName"] = ["Display name is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ShortDescription))
+        {
+            errors["metadata.shortDescription"] = ["Short description is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            errors["metadata.description"] = ["Description is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.GenreDisplay))
+        {
+            errors["metadata.genreDisplay"] = ["Genre display is required."];
+        }
+
+        if (request.MinPlayers < 1)
+        {
+            errors["metadata.minPlayers"] = ["Minimum players must be at least 1."];
+        }
+
+        if (request.MaxPlayers < request.MinPlayers)
+        {
+            errors["metadata.maxPlayers"] = ["Maximum players must be greater than or equal to minimum players."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.AgeRatingAuthority))
+        {
+            errors["metadata.ageRatingAuthority"] = ["Age rating authority is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.AgeRatingValue))
+        {
+            errors["metadata.ageRatingValue"] = ["Age rating value is required."];
+        }
+
+        if (request.MinAgeYears < 0)
+        {
+            errors["metadata.minAgeYears"] = ["Minimum age years must be zero or greater."];
+        }
+
+        return errors;
+    }
+
+    private static CatalogTitleSummaryDto MapTitleSummary(TitleSnapshot title) =>
+        new(
+            title.Id,
+            title.OrganizationId,
+            title.OrganizationSlug,
+            title.Slug,
+            title.ContentKind,
+            title.LifecycleStatus,
+            title.Visibility,
+            title.CurrentMetadataRevision,
+            title.DisplayName,
+            title.ShortDescription,
+            title.GenreDisplay,
+            title.MinPlayers,
+            title.MaxPlayers,
+            BuildPlayerCountDisplay(title.MinPlayers, title.MaxPlayers),
+            title.AgeRatingAuthority,
+            title.AgeRatingValue,
+            title.MinAgeYears,
+            BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue));
+
+    private static CatalogTitleDto MapTitleDetail(TitleSnapshot title) =>
+        new(
+            title.Id,
+            title.OrganizationId,
+            title.OrganizationSlug,
+            title.Slug,
+            title.ContentKind,
+            title.LifecycleStatus,
+            title.Visibility,
+            title.CurrentMetadataRevision,
+            title.DisplayName,
+            title.ShortDescription,
+            title.Description,
+            title.GenreDisplay,
+            title.MinPlayers,
+            title.MaxPlayers,
+            BuildPlayerCountDisplay(title.MinPlayers, title.MaxPlayers),
+            title.AgeRatingAuthority,
+            title.AgeRatingValue,
+            title.MinAgeYears,
+            BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
+            title.CreatedAtUtc,
+            title.UpdatedAtUtc);
+
+    private static TitleMetadataVersionDto MapMetadataVersion(TitleMetadataVersionSnapshot version) =>
+        new(
+            version.RevisionNumber,
+            version.IsCurrent,
+            version.IsFrozen,
+            version.DisplayName,
+            version.ShortDescription,
+            version.Description,
+            version.GenreDisplay,
+            version.MinPlayers,
+            version.MaxPlayers,
+            BuildPlayerCountDisplay(version.MinPlayers, version.MaxPlayers),
+            version.AgeRatingAuthority,
+            version.AgeRatingValue,
+            version.MinAgeYears,
+            BuildAgeDisplay(version.AgeRatingAuthority, version.AgeRatingValue),
+            version.CreatedAtUtc,
+            version.UpdatedAtUtc);
+
+    private static UpsertTitleMetadataCommand MapMetadataCommand(UpsertTitleMetadataRequest request) =>
+        new(
+            request.DisplayName.Trim(),
+            request.ShortDescription.Trim(),
+            request.Description.Trim(),
+            request.GenreDisplay.Trim(),
+            request.MinPlayers,
+            request.MaxPlayers,
+            request.AgeRatingAuthority.Trim(),
+            request.AgeRatingValue.Trim(),
+            request.MinAgeYears);
+
+    private static string NormalizeSlug(string slug) => slug.Trim().ToLowerInvariant();
+
+    private static string? NormalizeCode(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
+
+    private static string BuildPlayerCountDisplay(int minPlayers, int maxPlayers) =>
+        minPlayers == maxPlayers
+            ? $"{minPlayers} {(minPlayers == 1 ? "player" : "players")}"
+            : $"{minPlayers}-{maxPlayers} players";
+
+    private static string BuildAgeDisplay(string ageRatingAuthority, string ageRatingValue) =>
+        $"{ageRatingAuthority.Trim()} {ageRatingValue.Trim()}";
+
+    private static IResult CreateProblemResult(int statusCode, string title, string detail, string code) =>
+        Results.Json(
+            new TitleProblemEnvelope(
+                Type: $"https://boardtpl.dev/problems/{code.Replace('_', '-')}",
+                Title: title,
+                Status: statusCode,
+                Detail: detail,
+                Code: code),
+            statusCode: statusCode);
+
+    [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*$")]
+    private static partial Regex SlugPattern();
+}
+
+internal interface ITitleRequest
+{
+    string Slug { get; }
+
+    string ContentKind { get; }
+
+    string LifecycleStatus { get; }
+
+    string Visibility { get; }
+}
+
+/// <summary>
+/// Request payload for creating a title.
+/// </summary>
+/// <param name="Slug">Title route key unique within the organization.</param>
+/// <param name="ContentKind">Content kind such as game or app.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="Metadata">Initial required metadata snapshot.</param>
+internal sealed record CreateTitleRequest(
+    string Slug,
+    string ContentKind,
+    string LifecycleStatus,
+    string Visibility,
+    UpsertTitleMetadataRequest Metadata) : ITitleRequest;
+
+/// <summary>
+/// Request payload for updating stable title fields.
+/// </summary>
+/// <param name="Slug">Title route key unique within the organization.</param>
+/// <param name="ContentKind">Content kind such as game or app.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Visibility mode for the title.</param>
+internal sealed record UpdateTitleRequest(
+    string Slug,
+    string ContentKind,
+    string LifecycleStatus,
+    string Visibility) : ITitleRequest;
+
+/// <summary>
+/// Request payload for creating or updating the current title metadata snapshot.
+/// </summary>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum player count.</param>
+/// <param name="MaxPlayers">Maximum player count.</param>
+/// <param name="AgeRatingAuthority">Age-rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+internal sealed record UpsertTitleMetadataRequest(
+    string DisplayName,
+    string ShortDescription,
+    string Description,
+    string GenreDisplay,
+    int MinPlayers,
+    int MaxPlayers,
+    string AgeRatingAuthority,
+    string AgeRatingValue,
+    int MinAgeYears);
+
+/// <summary>
+/// Public catalog title summary DTO.
+/// </summary>
+/// <param name="Id">Title identifier.</param>
+/// <param name="OrganizationId">Owning organization identifier.</param>
+/// <param name="OrganizationSlug">Owning organization route key.</param>
+/// <param name="Slug">Title route key unique within the organization.</param>
+/// <param name="ContentKind">Content kind such as game or app.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="CurrentMetadataRevision">Currently active metadata revision number.</param>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum player count.</param>
+/// <param name="MaxPlayers">Maximum player count.</param>
+/// <param name="PlayerCountDisplay">Derived public player-count display.</param>
+/// <param name="AgeRatingAuthority">Age-rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="AgeDisplay">Derived public age display.</param>
+internal sealed record CatalogTitleSummaryDto(
+    Guid Id,
+    Guid OrganizationId,
+    string OrganizationSlug,
+    string Slug,
+    string ContentKind,
+    string LifecycleStatus,
+    string Visibility,
+    int CurrentMetadataRevision,
+    string DisplayName,
+    string ShortDescription,
+    string GenreDisplay,
+    int MinPlayers,
+    int MaxPlayers,
+    string PlayerCountDisplay,
+    string AgeRatingAuthority,
+    string AgeRatingValue,
+    int MinAgeYears,
+    string AgeDisplay);
+
+/// <summary>
+/// Detailed catalog title DTO.
+/// </summary>
+/// <param name="Id">Title identifier.</param>
+/// <param name="OrganizationId">Owning organization identifier.</param>
+/// <param name="OrganizationSlug">Owning organization route key.</param>
+/// <param name="Slug">Title route key unique within the organization.</param>
+/// <param name="ContentKind">Content kind such as game or app.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="CurrentMetadataRevision">Currently active metadata revision number.</param>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum player count.</param>
+/// <param name="MaxPlayers">Maximum player count.</param>
+/// <param name="PlayerCountDisplay">Derived public player-count display.</param>
+/// <param name="AgeRatingAuthority">Age-rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="AgeDisplay">Derived public age display.</param>
+/// <param name="CreatedAt">UTC timestamp when the title was created.</param>
+/// <param name="UpdatedAt">UTC timestamp when the title was last updated.</param>
+internal sealed record CatalogTitleDto(
+    Guid Id,
+    Guid OrganizationId,
+    string OrganizationSlug,
+    string Slug,
+    string ContentKind,
+    string LifecycleStatus,
+    string Visibility,
+    int CurrentMetadataRevision,
+    string DisplayName,
+    string ShortDescription,
+    string? Description,
+    string GenreDisplay,
+    int MinPlayers,
+    int MaxPlayers,
+    string PlayerCountDisplay,
+    string AgeRatingAuthority,
+    string AgeRatingValue,
+    int MinAgeYears,
+    string AgeDisplay,
+    DateTime? CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>
+/// Response wrapper for public catalog title lists.
+/// </summary>
+/// <param name="Titles">Catalog titles visible to the caller.</param>
+internal sealed record CatalogTitleListResponse(IReadOnlyList<CatalogTitleSummaryDto> Titles);
+
+/// <summary>
+/// Response wrapper for a public catalog title.
+/// </summary>
+/// <param name="Title">Catalog title details.</param>
+internal sealed record CatalogTitleResponse(CatalogTitleDto Title);
+
+/// <summary>
+/// Response wrapper for developer-visible title lists.
+/// </summary>
+/// <param name="Titles">Titles visible to the caller.</param>
+internal sealed record DeveloperTitleListResponse(IReadOnlyList<CatalogTitleSummaryDto> Titles);
+
+/// <summary>
+/// Response wrapper for a developer-visible title.
+/// </summary>
+/// <param name="Title">Title details.</param>
+internal sealed record DeveloperTitleResponse(CatalogTitleDto Title);
+
+/// <summary>
+/// Metadata revision DTO.
+/// </summary>
+/// <param name="RevisionNumber">Per-title revision number.</param>
+/// <param name="IsCurrent">Whether the revision is currently active for the title.</param>
+/// <param name="IsFrozen">Whether the revision is immutable.</param>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum player count.</param>
+/// <param name="MaxPlayers">Maximum player count.</param>
+/// <param name="PlayerCountDisplay">Derived public player-count display.</param>
+/// <param name="AgeRatingAuthority">Age-rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="AgeDisplay">Derived public age display.</param>
+/// <param name="CreatedAt">UTC timestamp when the metadata revision was created.</param>
+/// <param name="UpdatedAt">UTC timestamp when the metadata revision was last updated.</param>
+internal sealed record TitleMetadataVersionDto(
+    int RevisionNumber,
+    bool IsCurrent,
+    bool IsFrozen,
+    string DisplayName,
+    string ShortDescription,
+    string Description,
+    string GenreDisplay,
+    int MinPlayers,
+    int MaxPlayers,
+    string PlayerCountDisplay,
+    string AgeRatingAuthority,
+    string AgeRatingValue,
+    int MinAgeYears,
+    string AgeDisplay,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+/// <summary>
+/// Response wrapper for metadata revision lists.
+/// </summary>
+/// <param name="MetadataVersions">Metadata revisions visible to the caller.</param>
+internal sealed record TitleMetadataVersionListResponse(IReadOnlyList<TitleMetadataVersionDto> MetadataVersions);
+
+internal sealed record TitleProblemEnvelope(string? Type, string Title, int Status, string? Detail, string? Code);
