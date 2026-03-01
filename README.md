@@ -58,6 +58,7 @@ Notes:
 - Override with env var `ConnectionStrings__BoardLibrary` if needed.
 - Override Keycloak settings with `Authentication__Keycloak__*` environment variables if needed.
 - Authentication data ownership is documented in [`backend/docs/auth-data-ownership.md`](docs/auth-data-ownership.md).
+- Wave 3 catalog/title schema behavior is documented in [`backend/docs/title-catalog-schema.md`](docs/title-catalog-schema.md).
 
 Local Keycloak bootstrap defaults:
 
@@ -87,12 +88,13 @@ See:
 
 - [`backend/planning/mvp-schema-implementation-plan.md`](planning/mvp-schema-implementation-plan.md)
 - [`planning/current-state-and-wave-plan.md`](../planning/current-state-and-wave-plan.md)
+- [`backend/docs/title-catalog-schema.md`](docs/title-catalog-schema.md)
 
 ## API Testing (Postman)
 
-Versioned Postman assets for backend endpoint testing are stored in [`backend/postman/`](postman/).
+The maintained contract-test and environment assets now live in the `api` submodule and are executed through the root developer CLI.
 
 See:
 
-- [`backend/postman/README.md`](postman/README.md)
+- [`api/README.md`](../api/README.md)
 - [`backend/docs/postman-api-testing.md`](docs/postman-api-testing.md)

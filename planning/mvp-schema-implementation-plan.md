@@ -162,8 +162,11 @@ Key notes:
 - `titles.visibility` is separate from lifecycle and now uses `private`, `unlisted`, and `listed`.
 - public routing is aligned to storefront-style route keys: `/catalog/{organizationSlug}/{titleSlug}`.
 - `title_metadata_versions` persists `display_name`, `short_description`, `description`, `genre_display`, structured player counts, and age-rating authority/value plus `min_age_years`.
+- `playerCountDisplay` and `ageDisplay` are API-derived presentation fields and are not persisted as database columns.
 - `titles.current_metadata_version_id` is constrained so a title can only point to one of its own metadata rows.
 - metadata revisions remain mutable only while the title is in `draft` and the current revision is unfrozen; once the title leaves `draft`, revisions are preserved as immutable history.
+- public semver is deferred to Wave 4 releases and does not belong on Wave 3 metadata revisions.
+- the maintained behavior/reference document for this wave is [`backend/docs/title-catalog-schema.md`](../docs/title-catalog-schema.md).
 
 ### Wave 4: Media + Releases + Artifacts
 

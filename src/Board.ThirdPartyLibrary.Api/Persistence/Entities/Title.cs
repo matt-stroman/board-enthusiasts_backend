@@ -1,28 +1,67 @@
 namespace Board.ThirdPartyLibrary.Api.Persistence.Entities;
 
+/// <summary>
+/// Stable catalog title owned by a developer organization.
+/// </summary>
 internal sealed class Title
 {
+    /// <summary>
+    /// Gets or sets the title identifier.
+    /// </summary>
     public Guid Id { get; set; }
 
+    /// <summary>
+    /// Gets or sets the owning organization identifier.
+    /// </summary>
     public Guid OrganizationId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the organization-scoped route key for the title.
+    /// </summary>
     public string Slug { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the stable content kind such as game or app.
+    /// </summary>
     public string ContentKind { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the lifecycle state used for catalog behavior.
+    /// </summary>
     public string LifecycleStatus { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the public discoverability mode for the title.
+    /// </summary>
     public string Visibility { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the currently active metadata revision identifier.
+    /// </summary>
     public Guid? CurrentMetadataVersionId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the UTC creation timestamp.
+    /// </summary>
     public DateTime CreatedAtUtc { get; set; }
 
+    /// <summary>
+    /// Gets or sets the UTC timestamp of the most recent title-level update.
+    /// </summary>
     public DateTime UpdatedAtUtc { get; set; }
 
+    /// <summary>
+    /// Gets or sets the owning organization.
+    /// </summary>
     public Organization Organization { get; set; } = null!;
 
+    /// <summary>
+    /// Gets or sets the currently active metadata revision.
+    /// </summary>
     public TitleMetadataVersion? CurrentMetadataVersion { get; set; }
 
+    /// <summary>
+    /// Gets or sets all metadata revisions associated with the title.
+    /// </summary>
     public ICollection<TitleMetadataVersion> MetadataVersions { get; set; } = [];
 }

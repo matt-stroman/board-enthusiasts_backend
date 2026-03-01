@@ -435,14 +435,29 @@ internal static partial class TitleEndpoints
     private static partial Regex SlugPattern();
 }
 
+/// <summary>
+/// Shared stable title fields used by create and update request payloads.
+/// </summary>
 internal interface ITitleRequest
 {
+    /// <summary>
+    /// Gets the organization-scoped title route key.
+    /// </summary>
     string Slug { get; }
 
+    /// <summary>
+    /// Gets the stable title content kind.
+    /// </summary>
     string ContentKind { get; }
 
+    /// <summary>
+    /// Gets the lifecycle state for the title.
+    /// </summary>
     string LifecycleStatus { get; }
 
+    /// <summary>
+    /// Gets the public discoverability mode for the title.
+    /// </summary>
     string Visibility { get; }
 }
 
@@ -652,4 +667,12 @@ internal sealed record TitleMetadataVersionDto(
 /// <param name="MetadataVersions">Metadata revisions visible to the caller.</param>
 internal sealed record TitleMetadataVersionListResponse(IReadOnlyList<TitleMetadataVersionDto> MetadataVersions);
 
+/// <summary>
+/// Problem-details-style payload used for title-specific conflict responses.
+/// </summary>
+/// <param name="Type">Problem type URI.</param>
+/// <param name="Title">Short problem title.</param>
+/// <param name="Status">HTTP status code.</param>
+/// <param name="Detail">Problem description.</param>
+/// <param name="Code">Application-specific error code.</param>
 internal sealed record TitleProblemEnvelope(string? Type, string Title, int Status, string? Detail, string? Code);

@@ -97,10 +97,11 @@ curl http://localhost:5085/identity/auth/config
 
 Current persistence note:
 
-- PostgreSQL is now used for both backend readiness and Wave 1 application-owned identity persistence.
+- PostgreSQL is now used for backend readiness plus Wave 1 through Wave 3 persistence.
 - Keycloak owns authentication data, platform roles, and login/account lifecycle flows.
-- The maintained current API surface includes persisted Board profile CRUD backed by PostgreSQL.
+- The maintained current API surface includes persisted Board profile CRUD, organizations/memberships, and titles/versioned metadata backed by PostgreSQL.
 - See [`backend/docs/auth-data-ownership.md`](auth-data-ownership.md) for the current data ownership boundary.
+- See [`backend/docs/title-catalog-schema.md`](title-catalog-schema.md) for the current Wave 3 catalog schema and lifecycle model.
 
 ## Common Commands
 
@@ -118,10 +119,10 @@ python ./scripts/dev.py test
 python ./scripts/dev.py test --skip-integration
 ```
 
-Run versioned Postman API tests via Newman (optional, requires Node.js / `npx`):
+Run the maintained API contract tests:
 
 ```powershell
-pwsh ./backend/scripts/run-postman.ps1
+python ./scripts/dev.py api-test
 ```
 
 ## Manual Equivalents (If You Prefer Not to Use Scripts)
@@ -159,7 +160,8 @@ dotnet run --project ./backend/src/Board.ThirdPartyLibrary.Api/Board.ThirdPartyL
 - [`planning/`](../../planning): project-wide planning and recommendation artifacts (root repo)
 - [`backend/docs/`](../docs): backend-specific setup and usage docs (this submodule)
 - [`backend/planning/`](../planning): backend planning and implementation-tracking artifacts
-- [`backend/postman/`](../postman): versioned Postman collections/environments for API endpoint testing
+- [`api/postman/`](../../api/postman): maintained OpenAPI, contract-test collections, and environment templates
+- [`backend/postman/`](../postman): legacy/local-only backend Postman assets
 - [`scripts/`](../../scripts): root-level developer orchestration scripts
 
 ## Troubleshooting
@@ -228,6 +230,7 @@ This is expected for .NET development tooling on some machines.
 See also:
 
 - [Auth and data ownership (`backend/docs/auth-data-ownership.md`)](auth-data-ownership.md)
+- [Title catalog schema (`backend/docs/title-catalog-schema.md`)](title-catalog-schema.md)
 - [Technology direction (`planning/technology-fit-recommendation.md`)](../../planning/technology-fit-recommendation.md)
 - [Phase 1 Postgres setup (`backend/docs/backend-phase-1-postgres-setup.md`)](backend-phase-1-postgres-setup.md)
 - [Postman API testing (`backend/docs/postman-api-testing.md`)](postman-api-testing.md)
