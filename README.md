@@ -4,8 +4,8 @@ A backend service for third party developers for the Board ecosystem to use to r
 
 Current implementation status:
 
-- implemented now: health endpoints plus Keycloak-backed identity/auth foundation
-- planned next: EF Core schema, migrations, and application-owned persistence waves
+- implemented now: health endpoints, Keycloak-backed identity/auth foundation, and Wave 1 persistence for `users` and `user_board_profiles`
+- planned next: Wave 2 organizations and memberships
 
 ## Table of Contents
 

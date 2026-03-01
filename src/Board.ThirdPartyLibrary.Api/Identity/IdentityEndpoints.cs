@@ -83,6 +83,7 @@ internal static class IdentityEndpoints
             IKeycloakAuthorizationStateStore authorizationStateStore,
             IKeycloakTokenClient tokenClient,
             IKeycloakEndpointResolver endpointResolver,
+            IIdentityPersistenceService identityPersistenceService,
             CancellationToken cancellationToken) =>
         {
             if (!string.IsNullOrWhiteSpace(error))
@@ -121,6 +122,9 @@ internal static class IdentityEndpoints
                     statusCode: StatusCodes.Status502BadGateway);
             }
 
+            var accessTokenClaims = ReadClaims(exchangeResult.AccessToken).ToArray();
+            await identityPersistenceService.EnsureCurrentUserProjectionAsync(accessTokenClaims, cancellationToken);
+
             return Results.Ok(new AuthenticationCallbackResponse(
                 AccessToken: exchangeResult.AccessToken,
                 RefreshToken: exchangeResult.RefreshToken,
@@ -128,13 +132,105 @@ internal static class IdentityEndpoints
                 TokenType: exchangeResult.TokenType ?? JwtBearerDefaults.AuthenticationScheme,
                 ExpiresInSeconds: exchangeResult.ExpiresInSeconds,
                 Scope: exchangeResult.Scope,
-                User: BuildCurrentUserResponse(ReadClaims(exchangeResult.AccessToken))));
+                User: BuildCurrentUserResponse(accessTokenClaims)));
         });
 
-        group.MapGet("/me", [Authorize] (ClaimsPrincipal user) =>
-            Results.Ok(BuildCurrentUserResponse(user.Claims)));
+        group.MapGet("/me", [Authorize] async (
+            ClaimsPrincipal user,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            await identityPersistenceService.EnsureCurrentUserProjectionAsync(user.Claims, cancellationToken);
+            return Results.Ok(BuildCurrentUserResponse(user.Claims));
+        });
+
+        group.MapGet("/me/board-profile", [Authorize] async (
+            ClaimsPrincipal user,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            var boardProfile = await identityPersistenceService.GetBoardProfileAsync(user.Claims, cancellationToken);
+            return boardProfile is null
+                ? CreateProblemResult(
+                    StatusCodes.Status404NotFound,
+                    "Board profile not linked",
+                    "No linked Board profile exists for the current user.",
+                    "board_profile_not_linked")
+                : Results.Ok(new BoardProfileResponse(new BoardProfile(
+                    boardProfile.BoardUserId,
+                    boardProfile.DisplayName,
+                    boardProfile.AvatarUrl,
+                    boardProfile.LinkedAtUtc,
+                    boardProfile.LastSyncedAtUtc)));
+        });
+
+        group.MapPut("/me/board-profile", [Authorize] async (
+            ClaimsPrincipal user,
+            UpsertBoardProfileRequest request,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            var validationErrors = ValidateBoardProfileRequest(request);
+            if (validationErrors.Count > 0)
+            {
+                return Results.ValidationProblem(validationErrors, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var boardProfile = await identityPersistenceService.UpsertBoardProfileAsync(
+                user.Claims,
+                new UpsertBoardProfileCommand(
+                    request.BoardUserId.Trim(),
+                    request.DisplayName.Trim(),
+                    request.AvatarUrl?.Trim()),
+                cancellationToken);
+
+            return Results.Ok(new BoardProfileResponse(new BoardProfile(
+                boardProfile.BoardUserId,
+                boardProfile.DisplayName,
+                boardProfile.AvatarUrl,
+                boardProfile.LinkedAtUtc,
+                boardProfile.LastSyncedAtUtc)));
+        });
+
+        group.MapDelete("/me/board-profile", [Authorize] async (
+            ClaimsPrincipal user,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            var deleted = await identityPersistenceService.DeleteBoardProfileAsync(user.Claims, cancellationToken);
+            return deleted
+                ? Results.NoContent()
+                : CreateProblemResult(
+                    StatusCodes.Status404NotFound,
+                    "Board profile not linked",
+                    "No linked Board profile exists for the current user.",
+                    "board_profile_not_linked");
+        });
 
         return app;
+    }
+
+    private static Dictionary<string, string[]> ValidateBoardProfileRequest(UpsertBoardProfileRequest request)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(request.BoardUserId))
+        {
+            errors["boardUserId"] = ["Board user ID is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            errors["displayName"] = ["Display name is required."];
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.AvatarUrl) &&
+            !Uri.TryCreate(request.AvatarUrl, UriKind.Absolute, out _))
+        {
+            errors["avatarUrl"] = ["Avatar URL must be an absolute URI."];
+        }
+
+        return errors;
     }
 
     private static CurrentUserResponse BuildCurrentUserResponse(IEnumerable<Claim> claims)
@@ -157,6 +253,16 @@ internal static class IdentityEndpoints
 
     private static IEnumerable<Claim> ReadClaims(string accessToken) =>
         new JwtSecurityTokenHandler().ReadJwtToken(accessToken).Claims;
+
+    private static IResult CreateProblemResult(int statusCode, string title, string detail, string code) =>
+        Results.Json(
+            new ProblemEnvelope(
+                Type: $"https://boardtpl.dev/problems/{code.Replace('_', '-')}",
+                Title: title,
+                Status: statusCode,
+                Detail: detail,
+                Code: code),
+            statusCode: statusCode);
 
     private static string? GetClaimValue(IEnumerable<Claim> claims, string type) =>
         claims.FirstOrDefault(claim => string.Equals(claim.Type, type, StringComparison.OrdinalIgnoreCase))?.Value;
@@ -230,3 +336,34 @@ internal sealed record CurrentUserResponse(
     bool EmailVerified,
     string? IdentityProvider,
     IReadOnlyList<string> Roles);
+
+/// <summary>
+/// Linked Board profile summary for the current user.
+/// </summary>
+/// <param name="BoardUserId">Board-owned user identifier.</param>
+/// <param name="DisplayName">Board display name.</param>
+/// <param name="AvatarUrl">Board avatar image URL.</param>
+/// <param name="LinkedAt">UTC timestamp when the profile was first linked.</param>
+/// <param name="LastSyncedAt">UTC timestamp when the cached profile was last updated.</param>
+internal sealed record BoardProfile(
+    string BoardUserId,
+    string DisplayName,
+    string? AvatarUrl,
+    DateTime LinkedAt,
+    DateTime LastSyncedAt);
+
+/// <summary>
+/// Response wrapper for the linked Board profile endpoint.
+/// </summary>
+/// <param name="BoardProfile">Current user's linked Board profile.</param>
+internal sealed record BoardProfileResponse(BoardProfile BoardProfile);
+
+/// <summary>
+/// Request payload for linking or updating a Board profile.
+/// </summary>
+/// <param name="BoardUserId">Board-owned user identifier.</param>
+/// <param name="DisplayName">Board display name.</param>
+/// <param name="AvatarUrl">Optional avatar image URL.</param>
+internal sealed record UpsertBoardProfileRequest(string BoardUserId, string DisplayName, string? AvatarUrl);
+
+internal sealed record ProblemEnvelope(string? Type, string Title, int Status, string? Detail, string? Code);

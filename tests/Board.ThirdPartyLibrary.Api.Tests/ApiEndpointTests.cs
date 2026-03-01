@@ -1,14 +1,18 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
+using Board.ThirdPartyLibrary.Api.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -411,6 +415,194 @@ public sealed class ApiEndpointTests
             role => role == "admin");
     }
 
+    /// <summary>
+    /// Verifies the current-user endpoint creates or updates the local user projection.
+    /// </summary>
+    [Fact]
+    public async Task CurrentUserEndpoint_WithAuthenticatedUser_PersistsUserProjection()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim("email", "admin@boardtpl.local"),
+                new Claim("email_verified", "true"),
+                new Claim("idp", "google"),
+                new Claim(ClaimTypes.Role, "admin")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var user = await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+
+        Assert.Equal("Local Admin", user.DisplayName);
+        Assert.Equal("admin@boardtpl.local", user.Email);
+        Assert.True(user.EmailVerified);
+        Assert.Equal("google", user.IdentityProvider);
+    }
+
+    /// <summary>
+    /// Verifies the linked Board profile endpoint requires authentication.
+    /// </summary>
+    [Fact]
+    public async Task BoardProfileEndpoint_WithoutBearerToken_ReturnsUnauthorized()
+    {
+        using var factory = new TestApiFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me/board-profile");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Verifies a missing Board profile returns a not-found problem payload.
+    /// </summary>
+    [Fact]
+    public async Task BoardProfileEndpoint_WhenProfileIsMissing_ReturnsNotFound()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("preferred_username", "local-admin")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me/board-profile");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.Equal("board_profile_not_linked", document.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>
+    /// Verifies invalid Board profile payloads are rejected.
+    /// </summary>
+    [Fact]
+    public async Task UpsertBoardProfileEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("preferred_username", "local-admin")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PutAsJsonAsync(
+            "/identity/me/board-profile",
+            new
+            {
+                boardUserId = "",
+                displayName = "",
+                avatarUrl = "not-a-valid-uri"
+            });
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal((HttpStatusCode)StatusCodes.Status422UnprocessableEntity, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var errors = document.RootElement.GetProperty("errors");
+        Assert.True(errors.TryGetProperty("boardUserId", out _));
+        Assert.True(errors.TryGetProperty("displayName", out _));
+        Assert.True(errors.TryGetProperty("avatarUrl", out _));
+    }
+
+    /// <summary>
+    /// Verifies linking a Board profile persists and returns the stored profile.
+    /// </summary>
+    [Fact]
+    public async Task UpsertBoardProfileEndpoint_WithAuthenticatedUser_PersistsAndReturnsProfile()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim("email", "admin@boardtpl.local")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PutAsJsonAsync(
+            "/identity/me/board-profile",
+            new
+            {
+                boardUserId = "board_user_12345",
+                displayName = "BoardKiddo",
+                avatarUrl = "https://cdn.board.fun/users/board_user_12345/avatar.png"
+            });
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var boardProfile = document.RootElement.GetProperty("boardProfile");
+        Assert.Equal("board_user_12345", boardProfile.GetProperty("boardUserId").GetString());
+        Assert.Equal("BoardKiddo", boardProfile.GetProperty("displayName").GetString());
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var user = await dbContext.Users.Include(candidate => candidate.BoardProfile)
+            .SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+
+        Assert.NotNull(user.BoardProfile);
+        Assert.Equal("board_user_12345", user.BoardProfile!.BoardUserId);
+        Assert.Equal("BoardKiddo", user.BoardProfile.DisplayName);
+    }
+
+    /// <summary>
+    /// Verifies unlinking a Board profile removes the persisted link.
+    /// </summary>
+    [Fact]
+    public async Task DeleteBoardProfileEndpoint_WhenProfileExists_RemovesProfile()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("preferred_username", "local-admin")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var upsertResponse = await client.PutAsJsonAsync(
+            "/identity/me/board-profile",
+            new
+            {
+                boardUserId = "board_user_12345",
+                displayName = "BoardKiddo",
+                avatarUrl = "https://cdn.board.fun/users/board_user_12345/avatar.png"
+            });
+
+        Assert.Equal(HttpStatusCode.OK, upsertResponse.StatusCode);
+
+        using var deleteResponse = await client.DeleteAsync("/identity/me/board-profile");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        using var getResponse = await client.GetAsync("/identity/me/board-profile");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var user = await dbContext.Users.Include(candidate => candidate.BoardProfile)
+            .SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+
+        Assert.Null(user.BoardProfile);
+    }
+
     private static Dictionary<string, string> ParseQuery(string query) =>
         query.TrimStart('?')
             .Split('&', StringSplitOptions.RemoveEmptyEntries)
@@ -439,19 +631,24 @@ public sealed class ApiEndpointTests
         private readonly Action<IConfigurationBuilder>? _configureConfiguration;
         private readonly bool _useTestAuthentication;
         private readonly IReadOnlyList<Claim> _testClaims;
+        private readonly bool _useInMemoryPersistence;
+        private readonly string _inMemoryDatabaseName;
 
         public TestApiFactory(
             Func<CancellationToken, Task<PostgresReadinessProbeResult>>? probeFunc = null,
             Action<IServiceCollection>? configureServices = null,
             Action<IConfigurationBuilder>? configureConfiguration = null,
             bool useTestAuthentication = false,
-            IEnumerable<Claim>? testClaims = null)
+            IEnumerable<Claim>? testClaims = null,
+            bool useInMemoryPersistence = true)
         {
             _probeFunc = probeFunc;
             _configureServices = configureServices;
             _configureConfiguration = configureConfiguration;
             _useTestAuthentication = useTestAuthentication;
             _testClaims = testClaims?.ToList() ?? [];
+            _useInMemoryPersistence = useInMemoryPersistence;
+            _inMemoryDatabaseName = $"board-third-party-lib-tests-{Guid.NewGuid():N}";
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -460,11 +657,31 @@ public sealed class ApiEndpointTests
 
             builder.ConfigureAppConfiguration((_, configurationBuilder) =>
             {
+                configurationBuilder.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:BoardLibrary"] = "Host=unit-test;Port=5432;Database=board_tpl_tests;Username=board_tpl_test;Password=board_tpl_test"
+                    });
+
                 _configureConfiguration?.Invoke(configurationBuilder);
             });
 
             builder.ConfigureTestServices(services =>
             {
+                if (_useInMemoryPersistence)
+                {
+                    var inMemoryProvider = new ServiceCollection()
+                        .AddEntityFrameworkInMemoryDatabase()
+                        .BuildServiceProvider();
+
+                    services.RemoveAll<DbContextOptions<BoardLibraryDbContext>>();
+                    services.RemoveAll<BoardLibraryDbContext>();
+                    services.AddDbContext<BoardLibraryDbContext>(options =>
+                        options
+                            .UseInMemoryDatabase(_inMemoryDatabaseName)
+                            .UseInternalServiceProvider(inMemoryProvider));
+                }
+
                 if (_probeFunc is not null)
                 {
                     services.RemoveAll<IPostgresReadinessProbe>();

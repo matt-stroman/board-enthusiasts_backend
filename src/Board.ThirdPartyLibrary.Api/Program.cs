@@ -3,9 +3,11 @@ using System.Text.Json.Serialization;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
 using Board.ThirdPartyLibrary.Api.Identity;
+using Board.ThirdPartyLibrary.Api.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 
@@ -28,6 +30,14 @@ builder.Services.AddHttpClient<IKeycloakTokenClient, KeycloakTokenClient>();
 
 var keycloakOptions = builder.Configuration.GetSection(KeycloakOptions.SectionName).Get<KeycloakOptions>() ?? new KeycloakOptions();
 var authority = $"{keycloakOptions.BaseUrl.TrimEnd('/')}/realms/{Uri.EscapeDataString(keycloakOptions.Realm)}";
+var boardLibraryConnectionString = builder.Configuration.GetConnectionString("BoardLibrary");
+var hasBoardLibraryConnectionString = !string.IsNullOrWhiteSpace(boardLibraryConnectionString);
+
+builder.Services.AddDbContext<BoardLibraryDbContext>(options =>
+    options.UseNpgsql(hasBoardLibraryConnectionString
+        ? boardLibraryConnectionString
+        : "Host=invalid;Port=5432;Database=board_tpl_unconfigured;Username=invalid;Password=invalid"));
+builder.Services.AddScoped<IIdentityPersistenceService, IdentityPersistenceService>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -51,6 +61,8 @@ builder.Services.AddHealthChecks()
     .AddCheck<PostgresReadyHealthCheck>("postgres", tags: ["ready"]);
 
 var app = builder.Build();
+
+await ApplyDatabaseMigrationsAsync(app.Services, hasBoardLibraryConnectionString);
 
 app.MapGet("/", () => Results.Ok(new
 {
@@ -76,6 +88,25 @@ app.UseAuthorization();
 app.MapIdentityEndpoints();
 
 app.Run();
+
+static async Task ApplyDatabaseMigrationsAsync(IServiceProvider services, bool applyRelationalMigrations)
+{
+    if (!applyRelationalMigrations)
+    {
+        return;
+    }
+
+    await using var scope = services.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+
+    if (dbContext.Database.IsRelational())
+    {
+        await dbContext.Database.MigrateAsync();
+        return;
+    }
+
+    await dbContext.Database.EnsureCreatedAsync();
+}
 
 static Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
 {
