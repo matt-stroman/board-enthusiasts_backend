@@ -4,8 +4,8 @@ A backend service for third party developers for the Board ecosystem to use to r
 
 Current implementation status:
 
-- implemented now: health endpoints, Keycloak-backed identity/auth foundation, and Wave 1 persistence for `users` and `user_board_profiles`
-- planned next: Wave 2 organizations and memberships
+- implemented now: health endpoints, Keycloak-backed identity/auth foundation, Wave 1 persistence for `users` and `user_board_profiles`, and Wave 2 organizations and memberships
+- planned next: Wave 3 titles and versioned metadata
 
 ## Table of Contents
 
@@ -48,6 +48,7 @@ Verify endpoints:
 curl http://localhost:5085/health/live
 curl http://localhost:5085/health/ready
 curl http://localhost:5085/identity/auth/config
+curl http://localhost:5085/organizations
 ```
 
 Notes:

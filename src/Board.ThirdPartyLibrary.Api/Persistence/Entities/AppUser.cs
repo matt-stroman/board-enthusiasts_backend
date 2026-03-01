@@ -19,4 +19,6 @@ internal sealed class AppUser
     public DateTime UpdatedAtUtc { get; set; }
 
     public UserBoardProfile? BoardProfile { get; set; }
+
+    public ICollection<OrganizationMembership> OrganizationMemberships { get; set; } = [];
 }

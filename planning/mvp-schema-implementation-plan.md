@@ -32,7 +32,8 @@ As of March 1, 2026:
 
 - the backend implements a Keycloak-backed API/authentication foundation
 - the backend implements Wave 1 EF Core persistence, migrations, and the application-owned identity projection plus Board profile linkage
-- the later wave definitions below are planned schema implementation waves, while Wave 1 is now the implemented baseline
+- the backend now also implements Wave 2 organizations and memberships
+- the later wave definitions below are planned schema implementation waves, while Waves 1 and 2 are now the implemented baseline
 
 Important alignment rule:
 
@@ -125,6 +126,8 @@ Key notes:
 - `user_board_profiles` is optional/non-authoritative.
 
 ### Wave 2: Organizations + Memberships
+
+Status: implemented on March 1, 2026.
 
 Tables:
 
@@ -296,9 +299,9 @@ Recommended developer workflow (schema changes):
 Planned next backend work items (code-first):
 
 1. Keep Keycloak realm import aligned with the backend platform role catalog and future brokered SSO providers
-2. Implement Wave 2 entity types + configurations for `organizations` and `organization_memberships`
-3. Generate the Wave 2 migration
-4. Add integration tests for organization constraints and membership behaviors
-5. Implement Wave 3 incrementally after Wave 2 is stable
+2. Implement Wave 3 entity types + configurations for `titles` and `title_metadata_versions`
+3. Generate the Wave 3 migration
+4. Add integration tests for title and metadata-version constraints and behaviors
+5. Implement Wave 4 incrementally after Wave 3 is stable
 
 This plan keeps database schema definition fully reproducible from code while minimizing documentation duplication.

@@ -10,6 +10,10 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
 
     public DbSet<UserBoardProfile> UserBoardProfiles => Set<UserBoardProfile>();
 
+    public DbSet<Organization> Organizations => Set<Organization>();
+
+    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BoardLibraryDbContext).Assembly);
