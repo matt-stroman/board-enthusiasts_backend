@@ -59,7 +59,7 @@ Implications:
 
 ## Scope (MVP)
 
-Included now:
+Implemented now:
 
 - application-owned `users` projection linked to Keycloak subjects
 - Keycloak-backed platform roles (`player`, `developer`, `admin`, `moderator`) consumed from JWT claims rather than persisted as primary auth data in PostgreSQL
@@ -68,9 +68,12 @@ Included now:
 - titles and versioned metadata
 - media asset slots (`card`, `hero`, `logo`)
 - releases and APK artifacts
+
+Still planned within MVP:
+
 - external integration connections/bindings (content-host oriented)
 
-Deferred:
+Deferred beyond the current implemented baseline:
 
 - local projection tables for platform roles unless a concrete reporting/query need appears
 - payments / checkout / orders / entitlements
