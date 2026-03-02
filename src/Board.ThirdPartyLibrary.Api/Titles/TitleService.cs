@@ -278,6 +278,9 @@ internal sealed partial class TitleService(
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.IntegrationBindings)
+                .ThenInclude(candidate => candidate.IntegrationConnection)
+                    .ThenInclude(candidate => candidate.SupportedPublisher)
             .Where(candidate =>
                 candidate.CurrentMetadataVersionId != null &&
                 candidate.CurrentMetadataVersion != null &&
@@ -312,6 +315,9 @@ internal sealed partial class TitleService(
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.IntegrationBindings)
+                .ThenInclude(candidate => candidate.IntegrationConnection)
+                    .ThenInclude(candidate => candidate.SupportedPublisher)
             .Include(candidate => candidate.CurrentRelease)
                 .ThenInclude(candidate => candidate!.MetadataVersion)
             .SingleOrDefaultAsync(
@@ -354,6 +360,9 @@ internal sealed partial class TitleService(
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.IntegrationBindings)
+                .ThenInclude(candidate => candidate.IntegrationConnection)
+                    .ThenInclude(candidate => candidate.SupportedPublisher)
             .Where(candidate => candidate.OrganizationId == organizationId && candidate.CurrentMetadataVersionId != null)
             .OrderBy(candidate => candidate.CurrentMetadataVersion!.DisplayName)
             .Select(candidate => MapTitle(candidate, includeDescription: false))
@@ -644,6 +653,9 @@ internal sealed partial class TitleService(
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.IntegrationBindings)
+                .ThenInclude(candidate => candidate.IntegrationConnection)
+                    .ThenInclude(candidate => candidate.SupportedPublisher)
             .Include(candidate => candidate.CurrentRelease)
                 .ThenInclude(candidate => candidate!.MetadataVersion)
             .SingleOrDefaultAsync(candidate => candidate.Id == titleId, cancellationToken);
@@ -703,7 +715,20 @@ internal sealed partial class TitleService(
         Organization organization,
         TitleMetadataVersion metadataVersion,
         bool includeDescription) =>
-        new(
+        CreateTitleSnapshot(title, organization, metadataVersion, includeDescription);
+
+    private static TitleSnapshot CreateTitleSnapshot(
+        Title title,
+        Organization organization,
+        TitleMetadataVersion metadataVersion,
+        bool includeDescription)
+    {
+        var acquisitionBinding = title.IntegrationBindings
+            .Where(candidate => candidate.IsEnabled && candidate.IsPrimary && candidate.IntegrationConnection.IsEnabled)
+            .OrderBy(candidate => candidate.CreatedAtUtc)
+            .FirstOrDefault();
+
+        return new TitleSnapshot(
             title.Id,
             title.OrganizationId,
             organization.Slug,
@@ -725,13 +750,39 @@ internal sealed partial class TitleService(
             title.MediaAssets
                 .SingleOrDefault(candidate => candidate.MediaRole == TitleMediaRoles.Card)
                 ?.SourceUrl,
+            acquisitionBinding?.AcquisitionUrl,
             title.MediaAssets
                 .OrderBy(candidate => candidate.MediaRole)
                 .Select(MapMediaAsset)
                 .ToArray(),
             MapCurrentRelease(title.CurrentRelease),
+            MapPublicTitleAcquisition(acquisitionBinding),
             includeDescription ? title.CreatedAtUtc : null,
             includeDescription ? title.UpdatedAtUtc : null);
+    }
+
+    private static PublicTitleAcquisitionSnapshot? MapPublicTitleAcquisition(TitleIntegrationBinding? binding)
+    {
+        if (binding is null)
+        {
+            return null;
+        }
+
+        var providerDisplayName = binding.IntegrationConnection.SupportedPublisher?.DisplayName
+            ?? binding.IntegrationConnection.CustomPublisherDisplayName;
+
+        if (string.IsNullOrWhiteSpace(providerDisplayName))
+        {
+            return null;
+        }
+
+        return new PublicTitleAcquisitionSnapshot(
+            binding.AcquisitionUrl,
+            binding.AcquisitionLabel,
+            providerDisplayName,
+            binding.IntegrationConnection.SupportedPublisher?.HomepageUrl
+                ?? binding.IntegrationConnection.CustomPublisherHomepageUrl);
+    }
 
     private static string GetRequiredSubject(IEnumerable<Claim> claims)
     {
@@ -856,10 +907,21 @@ internal sealed record TitleSnapshot(
     int MinAgeYears,
     Guid? CurrentReleaseId,
     string? CardImageUrl,
+    string? AcquisitionUrl,
     IReadOnlyList<TitleMediaAssetSnapshot> MediaAssets,
     CurrentTitleReleaseSnapshot? CurrentRelease,
+    PublicTitleAcquisitionSnapshot? Acquisition,
     DateTime? CreatedAtUtc,
     DateTime? UpdatedAtUtc);
+
+/// <summary>
+/// Public title acquisition projection derived from the active primary binding.
+/// </summary>
+internal sealed record PublicTitleAcquisitionSnapshot(
+    string Url,
+    string? Label,
+    string ProviderDisplayName,
+    string? ProviderHomepageUrl);
 
 /// <summary>
 /// Projection of a title metadata revision for developer-facing responses.

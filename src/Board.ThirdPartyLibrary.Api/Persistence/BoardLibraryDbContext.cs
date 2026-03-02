@@ -41,6 +41,21 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
     public DbSet<TitleMetadataVersion> TitleMetadataVersions => Set<TitleMetadataVersion>();
 
     /// <summary>
+    /// Gets the platform-managed supported publisher registry.
+    /// </summary>
+    public DbSet<SupportedPublisher> SupportedPublishers => Set<SupportedPublisher>();
+
+    /// <summary>
+    /// Gets organization-owned external publisher/store connections.
+    /// </summary>
+    public DbSet<IntegrationConnection> IntegrationConnections => Set<IntegrationConnection>();
+
+    /// <summary>
+    /// Gets title-scoped external acquisition bindings.
+    /// </summary>
+    public DbSet<TitleIntegrationBinding> TitleIntegrationBindings => Set<TitleIntegrationBinding>();
+
+    /// <summary>
     /// Gets fixed-slot media assets associated with titles.
     /// </summary>
     public DbSet<TitleMediaAsset> TitleMediaAssets => Set<TitleMediaAsset>();

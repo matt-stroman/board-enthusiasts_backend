@@ -354,7 +354,8 @@ internal static partial class TitleEndpoints
             title.AgeRatingValue,
             title.MinAgeYears,
             BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
-            title.CardImageUrl);
+            title.CardImageUrl,
+            title.AcquisitionUrl);
 
     private static CatalogTitleDto MapTitleDetail(TitleSnapshot title) =>
         new(
@@ -378,8 +379,10 @@ internal static partial class TitleEndpoints
             title.MinAgeYears,
             BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
             title.CardImageUrl,
+            title.AcquisitionUrl,
             title.MediaAssets.Select(MapTitleMediaAsset).ToArray(),
             MapCurrentRelease(title.CurrentRelease),
+            MapPublicTitleAcquisition(title.Acquisition),
             title.CreatedAtUtc,
             title.UpdatedAtUtc);
 
@@ -405,8 +408,10 @@ internal static partial class TitleEndpoints
             title.MinAgeYears,
             BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
             title.CardImageUrl,
+            title.AcquisitionUrl,
             title.MediaAssets.Select(MapTitleMediaAsset).ToArray(),
             MapCurrentRelease(title.CurrentRelease),
+            MapPublicTitleAcquisition(title.Acquisition),
             title.CurrentReleaseId,
             title.CreatedAtUtc,
             title.UpdatedAtUtc);
@@ -441,6 +446,15 @@ internal static partial class TitleEndpoints
             request.AgeRatingAuthority.Trim(),
             request.AgeRatingValue.Trim(),
             request.MinAgeYears);
+
+    private static PublicTitleAcquisitionDto? MapPublicTitleAcquisition(PublicTitleAcquisitionSnapshot? acquisition) =>
+        acquisition is null
+            ? null
+            : new PublicTitleAcquisitionDto(
+                acquisition.Url,
+                acquisition.Label,
+                acquisition.ProviderDisplayName,
+                acquisition.ProviderHomepageUrl);
 
     private static string NormalizeSlug(string slug) => slug.Trim().ToLowerInvariant();
 
@@ -587,7 +601,8 @@ internal sealed record CatalogTitleSummaryDto(
     string AgeRatingValue,
     int MinAgeYears,
     string AgeDisplay,
-    string? CardImageUrl);
+    string? CardImageUrl,
+    string? AcquisitionUrl);
 
 /// <summary>
 /// Detailed catalog title DTO.
@@ -637,8 +652,10 @@ internal sealed record CatalogTitleDto(
     int MinAgeYears,
     string AgeDisplay,
     string? CardImageUrl,
+    string? AcquisitionUrl,
     IReadOnlyList<TitleMediaAssetDto> MediaAssets,
     CurrentTitleReleaseDto? CurrentRelease,
+    PublicTitleAcquisitionDto? Acquisition,
     DateTime? CreatedAt,
     DateTime? UpdatedAt);
 
@@ -691,11 +708,22 @@ internal sealed record DeveloperTitleDto(
     int MinAgeYears,
     string AgeDisplay,
     string? CardImageUrl,
+    string? AcquisitionUrl,
     IReadOnlyList<TitleMediaAssetDto> MediaAssets,
     CurrentTitleReleaseDto? CurrentRelease,
+    PublicTitleAcquisitionDto? Acquisition,
     Guid? CurrentReleaseId,
     DateTime? CreatedAt,
     DateTime? UpdatedAt);
+
+/// <summary>
+/// Public title acquisition DTO.
+/// </summary>
+internal sealed record PublicTitleAcquisitionDto(
+    string Url,
+    string? Label,
+    string ProviderDisplayName,
+    string? ProviderHomepageUrl);
 
 /// <summary>
 /// Response wrapper for public catalog title lists.

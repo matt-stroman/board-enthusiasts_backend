@@ -1,6 +1,6 @@
-# Title Catalog Schema (Waves 3 and 4)
+# Title Catalog Schema (Waves 3, 4, and 5)
 
-This document records the maintained title/catalog model that is currently implemented in the backend through Waves 3 and 4.
+This document records the maintained title/catalog model that is currently implemented in the backend through Waves 3, 4, and 5.
 
 ## Table of Contents
 
@@ -12,6 +12,7 @@ This document records the maintained title/catalog model that is currently imple
 - [Metadata Revision Behavior](#metadata-revision-behavior)
 - [Media Asset Model](#media-asset-model)
 - [Release And Artifact Model](#release-and-artifact-model)
+- [Acquisition Model](#acquisition-model)
 - [Public API Shape](#public-api-shape)
 - [Age Ratings And Derived Display Fields](#age-ratings-and-derived-display-fields)
 - [Schema References](#schema-references)
@@ -19,7 +20,7 @@ This document records the maintained title/catalog model that is currently imple
 
 ## Purpose
 
-Use this document for the current title/catalog schema and behavioral rules around titles, versioned metadata, media, releases, and artifact metadata.
+Use this document for the current title/catalog schema and behavioral rules around titles, versioned metadata, media, releases, artifact metadata, and external acquisition bindings.
 
 This is a maintained design/reference doc, but it is not a second exhaustive schema source of truth. Exact column names, constraints, comments, and foreign keys still live in EF Core configurations and migrations.
 
@@ -37,6 +38,7 @@ The current implemented scope includes:
 - fixed media slots for card, hero, and logo assets
 - semver release records bound to metadata revisions
 - APK artifact metadata records for published releases
+- supported publisher registry, reusable organization-level publisher connections, and title-level acquisition bindings
 
 ## Public Routing And Discoverability
 
@@ -59,6 +61,9 @@ The current title/catalog surface uses these PostgreSQL tables:
 - `title_media_assets`
 - `title_releases`
 - `release_artifacts`
+- `supported_publishers`
+- `integration_connections`
+- `title_integration_bindings`
 
 High-level ownership split:
 
@@ -67,6 +72,9 @@ High-level ownership split:
 - `title_media_assets` stores fixed Board-style media slots per title
 - `title_releases` stores semver release history bound to a title and one metadata revision
 - `release_artifacts` stores installable artifact metadata for a release
+- `supported_publishers` stores platform-managed canonical publisher/store registry entries
+- `integration_connections` stores reusable organization-owned supported/custom publisher connections
+- `title_integration_bindings` stores title-scoped external acquisition links
 
 Important integrity rules:
 
@@ -78,6 +86,8 @@ Important integrity rules:
 - `title_releases.metadata_version_id` is constrained so a release can only reference metadata that belongs to the same title
 - `titles.current_release_id` is constrained so it can only reference a release that belongs to the same title
 - artifact identity is unique only within a release by `(package_name, version_code)`
+- title acquisition bindings allow at most one enabled primary binding per title
+- title acquisition bindings cannot mark a binding as primary while disabled
 
 ## Lifecycle And Visibility Model
 
@@ -149,16 +159,44 @@ Current artifact behavior:
 - artifact rows do not yet expose or persist install/download URLs
 - publishing a release requires at least one artifact
 
+## Acquisition Model
+
+Wave 5 adds publisher-agnostic external acquisition support.
+
+Current supported publisher behavior:
+
+- `supported_publishers` is a platform-managed canonical registry
+- supported publishers are seeded through EF Core migrations
+- developers can list supported publishers and choose one when configuring an organization connection
+
+Current integration connection behavior:
+
+- each `integration_connection` belongs to exactly one organization
+- a connection must point to either one supported publisher or one custom publisher definition
+- custom publisher connections currently require both display name and homepage URL
+- provider-specific non-secret configuration can be stored in `config_json`
+- deleting a connection is blocked while any title binding still references it
+
+Current title acquisition binding behavior:
+
+- each binding belongs to exactly one title and one integration connection
+- bindings expose the external `acquisition_url` players should visit
+- enabled bindings must maintain exactly one enabled primary binding when any enabled bindings exist
+- enabling a new primary binding demotes the previous primary binding
+- public catalog responses derive acquisition data only from the current enabled primary binding whose connection is also enabled
+
 ## Public API Shape
 
-Wave 4 extends public catalog responses without exposing install delivery.
+Waves 4 and 5 extend public catalog responses without exposing install delivery.
 
 Current behavior:
 
-- `GET /catalog` can include `cardImageUrl` in title summaries
-- `GET /catalog/{organizationSlug}/{titleSlug}` includes `mediaAssets` and `currentRelease`
+- `GET /catalog` can include `cardImageUrl` and `acquisitionUrl` in title summaries
+- `GET /catalog/{organizationSlug}/{titleSlug}` includes `mediaAssets`, `currentRelease`, and `acquisition`
 - `currentRelease` is a summary view only; artifact internals remain developer-only
-- developer endpoints manage media, releases, publish/activate/withdraw transitions, and artifact metadata under `/developer/titles/{titleId}/...`
+- developer endpoints manage media, releases, publish/activate/withdraw transitions, artifact metadata, and title acquisition bindings under `/developer/titles/{titleId}/...`
+- developer endpoints manage organization-level publisher connections under `/developer/organizations/{organizationId}/integration-connections`
+- supported publisher discovery is exposed publicly through `GET /supported-publishers`
 
 ## Age Ratings And Derived Display Fields
 
@@ -190,24 +228,31 @@ Use these maintained implementation artifacts as the authoritative references:
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Entities/TitleMediaAsset.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Entities/TitleMediaAsset.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Entities/TitleRelease.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Entities/TitleRelease.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Entities/ReleaseArtifact.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Entities/ReleaseArtifact.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Entities/SupportedPublisher.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Entities/SupportedPublisher.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Entities/IntegrationConnection.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Entities/IntegrationConnection.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Entities/TitleIntegrationBinding.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Entities/TitleIntegrationBinding.cs)
 - EF configurations:
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleConfiguration.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleMetadataVersionConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleMetadataVersionConfiguration.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleMediaAssetConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleMediaAssetConfiguration.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleReleaseConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleReleaseConfiguration.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/ReleaseArtifactConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/ReleaseArtifactConfiguration.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/SupportedPublisherConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/SupportedPublisherConfiguration.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/IntegrationConnectionConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/IntegrationConnectionConfiguration.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleIntegrationBindingConfiguration.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Configurations/TitleIntegrationBindingConfiguration.cs)
 - migrations:
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260301225254_Wave3TitlesMetadata.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260301225254_Wave3TitlesMetadata.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302010127_Wave4MediaReleasesArtifacts.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302010127_Wave4MediaReleasesArtifacts.cs)
+  - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302025621_Wave5SupportedPublishersAcquisition.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302025621_Wave5SupportedPublishersAcquisition.cs)
 - API contract:
   - [`api/postman/specs/board-third-party-library-api.v1.openapi.yaml`](../../api/postman/specs/board-third-party-library-api.v1.openapi.yaml)
 
 ## Out Of Scope For The Current Wave Boundary
 
-The following remain out of scope until Wave 5 or later:
+The following remain out of scope after Wave 5:
 
-- external integration bindings and provider-specific host configuration
 - checkout, orders, entitlements, and monetization flows
 - Board-device install orchestration and artifact delivery URLs
+- shared custom-publisher registry management endpoints beyond the seeded supported publisher catalog
 
 Semver belongs on `title_releases`, not on `title_metadata_versions`. Metadata revisions capture catalog copy, not release identity. Artifact delivery remains deferred until the Board-device workflow is defined.

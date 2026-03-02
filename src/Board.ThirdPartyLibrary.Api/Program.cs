@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using Board.ThirdPartyLibrary.Api.Acquisition;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
 using Board.ThirdPartyLibrary.Api.Identity;
@@ -40,6 +41,7 @@ builder.Services.AddDbContext<BoardLibraryDbContext>(options =>
         ? boardLibraryConnectionString
         : "Host=invalid;Port=5432;Database=board_tpl_unconfigured;Username=invalid;Password=invalid"));
 builder.Services.AddScoped<IIdentityPersistenceService, IdentityPersistenceService>();
+builder.Services.AddScoped<IAcquisitionService, AcquisitionService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<ITitleService, TitleService>();
 
@@ -90,6 +92,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapIdentityEndpoints();
+app.MapAcquisitionEndpoints();
 app.MapOrganizationEndpoints();
 app.MapTitleEndpoints();
 

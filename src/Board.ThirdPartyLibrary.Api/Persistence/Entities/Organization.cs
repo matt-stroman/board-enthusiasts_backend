@@ -1,5 +1,8 @@
 namespace Board.ThirdPartyLibrary.Api.Persistence.Entities;
 
+/// <summary>
+/// Developer organization that owns titles and related external acquisition configuration.
+/// </summary>
 internal sealed class Organization
 {
     public Guid Id { get; set; }
@@ -19,4 +22,6 @@ internal sealed class Organization
     public ICollection<OrganizationMembership> Memberships { get; set; } = [];
 
     public ICollection<Title> Titles { get; set; } = [];
+
+    public ICollection<IntegrationConnection> IntegrationConnections { get; set; } = [];
 }

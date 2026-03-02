@@ -84,4 +84,9 @@ internal sealed class Title
     /// Gets or sets all releases associated with the title.
     /// </summary>
     public ICollection<TitleRelease> Releases { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets all external acquisition bindings associated with the title.
+    /// </summary>
+    public ICollection<TitleIntegrationBinding> IntegrationBindings { get; set; } = [];
 }

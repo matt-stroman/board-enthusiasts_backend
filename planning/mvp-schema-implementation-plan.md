@@ -36,7 +36,8 @@ As of March 2, 2026:
 - the backend now also implements Wave 2 organizations and memberships
 - the backend now also implements Wave 3 titles and versioned metadata
 - the backend now also implements Wave 4 title media assets, releases, and APK artifact metadata
-- the later wave definitions below are planned schema implementation waves, while Waves 1 through 4 are now the implemented baseline
+- the backend now also implements Wave 5 supported publishers and external acquisition bindings
+- the later wave definitions below are planned schema implementation waves, while Waves 1 through 5 are now the implemented baseline
 
 Important alignment rule:
 
@@ -72,7 +73,7 @@ Implemented now:
 
 Still planned within MVP:
 
-- supported publisher registry plus external acquisition connections/bindings for publisher-agnostic title linking
+- none beyond the current implemented baseline
 
 Deferred beyond the current implemented baseline:
 
@@ -213,6 +214,7 @@ Key notes:
 - Keep provider-specific settings in `jsonb`, but do not require deep provider logic for MVP.
 - Avoid a hard-coded provider enum for Wave 5; the supported registry plus custom fallback should handle standardization without enum churn.
 - Public API exposure should remain limited to acquisition metadata appropriate for link-out flows.
+- Status: implemented on March 2, 2026.
 
 ### Wave 6: Unified Commerce And Entitlements
 
@@ -382,9 +384,7 @@ Recommended developer workflow (schema changes):
 Planned next backend work items (code-first):
 
 1. Keep Keycloak realm import aligned with the backend platform role catalog and future brokered SSO providers
-2. Finalize the initial `supported_publishers` registry shape and seed strategy before locking the Wave 5 contract
-3. Design and implement Wave 5 supported publisher, integration connection, and title acquisition binding entities/API flows
-4. Define Wave 6 commerce/entitlement boundaries before adding payment-provider-specific fields
-5. Define how Wave 7 Board-native delivery/install should relate to release artifacts before adding artifact URLs
+2. Define Wave 6 commerce/entitlement boundaries before adding payment-provider-specific fields
+3. Define how Wave 7 Board-native delivery/install should relate to release artifacts before adding artifact URLs
 
 This plan keeps database schema definition fully reproducible from code while minimizing documentation duplication.
