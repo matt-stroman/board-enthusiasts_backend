@@ -69,6 +69,7 @@ Important for live local runs:
 
 - the committed local environment uses placeholders for `accessToken`, `organizationId`, `organizationSlug`, `titleId`, and `titleSlug`
 - authenticated success-path requests are skipped until those placeholders are replaced with real local values
+- Wave 4 developer requests reuse the same `titleId` and auth placeholders; no extra environment variables are required for media, release, or artifact management requests
 - this is expected and prevents false failures when developers only want public or unauthenticated smoke coverage
 
 ## How to run via CLI
@@ -106,4 +107,5 @@ Recommended patterns:
 - Keep one maintained contract collection for the current API boundary
 - Use folders by domain (`Catalog`, `Organizations`, `Identity`, etc.)
 - Add both happy-path and error-path coverage when endpoint behavior becomes more complex
+- Prefer portable validation/conflict examples for Wave 4-style developer endpoints so the collection still runs cleanly with placeholder local environment values
 - Keep shared secrets out of committed environments; use private local environment files instead

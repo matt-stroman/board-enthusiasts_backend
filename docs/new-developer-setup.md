@@ -97,11 +97,11 @@ curl http://localhost:5085/identity/auth/config
 
 Current persistence note:
 
-- PostgreSQL is now used for backend readiness plus Wave 1 through Wave 3 persistence.
+- PostgreSQL is now used for backend readiness plus Wave 1 through Wave 4 persistence.
 - Keycloak owns authentication data, platform roles, and login/account lifecycle flows.
-- The maintained current API surface includes persisted Board profile CRUD, organizations/memberships, and titles/versioned metadata backed by PostgreSQL.
+- The maintained current API surface includes persisted Board profile CRUD, organizations/memberships, titles/versioned metadata, media assets, release history, and APK artifact metadata backed by PostgreSQL.
 - See [`backend/docs/auth-data-ownership.md`](auth-data-ownership.md) for the current data ownership boundary.
-- See [`backend/docs/title-catalog-schema.md`](title-catalog-schema.md) for the current Wave 3 catalog schema and lifecycle model.
+- See [`backend/docs/title-catalog-schema.md`](title-catalog-schema.md) for the current title/catalog schema and lifecycle model.
 
 ## Common Commands
 

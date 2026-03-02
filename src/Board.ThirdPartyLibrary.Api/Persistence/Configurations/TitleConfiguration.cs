@@ -66,6 +66,9 @@ internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
         builder.Property(title => title.CurrentMetadataVersionId)
             .HasColumnName("current_metadata_version_id");
 
+        builder.Property(title => title.CurrentReleaseId)
+            .HasColumnName("current_release_id");
+
         builder.Property(title => title.CreatedAtUtc)
             .HasColumnName("created_at")
             .HasColumnType("timestamp with time zone")
@@ -78,6 +81,9 @@ internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
 
         builder.HasIndex(title => title.OrganizationId)
             .HasDatabaseName("ix_titles_organization_id");
+
+        builder.HasIndex(title => title.CurrentReleaseId)
+            .HasDatabaseName("ix_titles_current_release_id");
 
         builder.HasIndex(title => new { title.OrganizationId, title.Slug })
             .IsUnique()
@@ -94,6 +100,14 @@ internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
             .HasForeignKey(title => new { title.CurrentMetadataVersionId, title.Id })
             .HasPrincipalKey(metadataVersion => new { metadataVersion.Id, metadataVersion.TitleId })
             .HasConstraintName("fk_titles_title_metadata_versions_current_metadata")
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+
+        builder.HasOne(title => title.CurrentRelease)
+            .WithMany()
+            .HasForeignKey(title => new { title.CurrentReleaseId, title.Id })
+            .HasPrincipalKey(release => new { release.Id, release.TitleId })
+            .HasConstraintName("fk_titles_title_releases_current_release")
             .OnDelete(DeleteBehavior.Restrict)
             .IsRequired(false);
     }

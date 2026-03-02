@@ -41,6 +41,21 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
     public DbSet<TitleMetadataVersion> TitleMetadataVersions => Set<TitleMetadataVersion>();
 
     /// <summary>
+    /// Gets fixed-slot media assets associated with titles.
+    /// </summary>
+    public DbSet<TitleMediaAsset> TitleMediaAssets => Set<TitleMediaAsset>();
+
+    /// <summary>
+    /// Gets semver releases associated with titles.
+    /// </summary>
+    public DbSet<TitleRelease> TitleReleases => Set<TitleRelease>();
+
+    /// <summary>
+    /// Gets installable artifact metadata associated with releases.
+    /// </summary>
+    public DbSet<ReleaseArtifact> ReleaseArtifacts => Set<ReleaseArtifact>();
+
+    /// <summary>
     /// Applies entity configurations from the API assembly.
     /// </summary>
     /// <param name="modelBuilder">Model builder used to configure the relational model.</param>

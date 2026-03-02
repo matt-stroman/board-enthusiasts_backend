@@ -96,7 +96,7 @@ internal static partial class TitleEndpoints
             {
                 TitleMutationStatus.Success => Results.Created(
                     $"/catalog/{result.Title!.OrganizationSlug}/{result.Title.Slug}",
-                    new DeveloperTitleResponse(MapTitleDetail(result.Title))),
+                    new DeveloperTitleResponse(MapDeveloperTitleDetail(result.Title))),
                 TitleMutationStatus.NotFound => Results.NotFound(),
                 TitleMutationStatus.Forbidden => Results.Forbid(),
                 TitleMutationStatus.Conflict => CreateProblemResult(
@@ -117,7 +117,7 @@ internal static partial class TitleEndpoints
             var result = await titleService.GetTitleAsync(user.Claims, titleId, cancellationToken);
             return result.Status switch
             {
-                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapDeveloperTitleDetail(result.Title!))),
                 TitleMutationStatus.NotFound => Results.NotFound(),
                 TitleMutationStatus.Forbidden => Results.Forbid(),
                 _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
@@ -149,7 +149,7 @@ internal static partial class TitleEndpoints
 
             return result.Status switch
             {
-                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapDeveloperTitleDetail(result.Title!))),
                 TitleMutationStatus.NotFound => Results.NotFound(),
                 TitleMutationStatus.Forbidden => Results.Forbid(),
                 TitleMutationStatus.Conflict => CreateProblemResult(
@@ -182,7 +182,7 @@ internal static partial class TitleEndpoints
 
             return result.Status switch
             {
-                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapDeveloperTitleDetail(result.Title!))),
                 TitleMutationStatus.NotFound => Results.NotFound(),
                 TitleMutationStatus.Forbidden => Results.Forbid(),
                 _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
@@ -216,12 +216,14 @@ internal static partial class TitleEndpoints
             var result = await titleService.ActivateMetadataVersionAsync(user.Claims, titleId, revisionNumber, cancellationToken);
             return result.Status switch
             {
-                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapTitleDetail(result.Title!))),
+                TitleMutationStatus.Success => Results.Ok(new DeveloperTitleResponse(MapDeveloperTitleDetail(result.Title!))),
                 TitleMutationStatus.NotFound => Results.NotFound(),
                 TitleMutationStatus.Forbidden => Results.Forbid(),
                 _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
             };
         });
+
+        MapWave4TitleEndpoints(developerTitleGroup);
 
         return app;
     }
@@ -351,7 +353,8 @@ internal static partial class TitleEndpoints
             title.AgeRatingAuthority,
             title.AgeRatingValue,
             title.MinAgeYears,
-            BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue));
+            BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
+            title.CardImageUrl);
 
     private static CatalogTitleDto MapTitleDetail(TitleSnapshot title) =>
         new(
@@ -374,6 +377,37 @@ internal static partial class TitleEndpoints
             title.AgeRatingValue,
             title.MinAgeYears,
             BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
+            title.CardImageUrl,
+            title.MediaAssets.Select(MapTitleMediaAsset).ToArray(),
+            MapCurrentRelease(title.CurrentRelease),
+            title.CreatedAtUtc,
+            title.UpdatedAtUtc);
+
+    private static DeveloperTitleDto MapDeveloperTitleDetail(TitleSnapshot title) =>
+        new(
+            title.Id,
+            title.OrganizationId,
+            title.OrganizationSlug,
+            title.Slug,
+            title.ContentKind,
+            title.LifecycleStatus,
+            title.Visibility,
+            title.CurrentMetadataRevision,
+            title.DisplayName,
+            title.ShortDescription,
+            title.Description,
+            title.GenreDisplay,
+            title.MinPlayers,
+            title.MaxPlayers,
+            BuildPlayerCountDisplay(title.MinPlayers, title.MaxPlayers),
+            title.AgeRatingAuthority,
+            title.AgeRatingValue,
+            title.MinAgeYears,
+            BuildAgeDisplay(title.AgeRatingAuthority, title.AgeRatingValue),
+            title.CardImageUrl,
+            title.MediaAssets.Select(MapTitleMediaAsset).ToArray(),
+            MapCurrentRelease(title.CurrentRelease),
+            title.CurrentReleaseId,
             title.CreatedAtUtc,
             title.UpdatedAtUtc);
 
@@ -533,6 +567,7 @@ internal sealed record UpsertTitleMetadataRequest(
 /// <param name="AgeRatingValue">Authority-specific age rating value.</param>
 /// <param name="MinAgeYears">Minimum recommended player age.</param>
 /// <param name="AgeDisplay">Derived public age display.</param>
+/// <param name="CardImageUrl">Card/list image URL when configured.</param>
 internal sealed record CatalogTitleSummaryDto(
     Guid Id,
     Guid OrganizationId,
@@ -551,7 +586,8 @@ internal sealed record CatalogTitleSummaryDto(
     string AgeRatingAuthority,
     string AgeRatingValue,
     int MinAgeYears,
-    string AgeDisplay);
+    string AgeDisplay,
+    string? CardImageUrl);
 
 /// <summary>
 /// Detailed catalog title DTO.
@@ -575,6 +611,9 @@ internal sealed record CatalogTitleSummaryDto(
 /// <param name="AgeRatingValue">Authority-specific age rating value.</param>
 /// <param name="MinAgeYears">Minimum recommended player age.</param>
 /// <param name="AgeDisplay">Derived public age display.</param>
+/// <param name="CardImageUrl">Card/list image URL when configured.</param>
+/// <param name="MediaAssets">Configured title media assets.</param>
+/// <param name="CurrentRelease">Currently active public release when present.</param>
 /// <param name="CreatedAt">UTC timestamp when the title was created.</param>
 /// <param name="UpdatedAt">UTC timestamp when the title was last updated.</param>
 internal sealed record CatalogTitleDto(
@@ -597,6 +636,64 @@ internal sealed record CatalogTitleDto(
     string AgeRatingValue,
     int MinAgeYears,
     string AgeDisplay,
+    string? CardImageUrl,
+    IReadOnlyList<TitleMediaAssetDto> MediaAssets,
+    CurrentTitleReleaseDto? CurrentRelease,
+    DateTime? CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>
+/// Detailed developer title DTO.
+/// </summary>
+/// <param name="Id">Title identifier.</param>
+/// <param name="OrganizationId">Owning organization identifier.</param>
+/// <param name="OrganizationSlug">Owning organization route key.</param>
+/// <param name="Slug">Title route key unique within the organization.</param>
+/// <param name="ContentKind">Content kind such as game or app.</param>
+/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
+/// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="CurrentMetadataRevision">Currently active metadata revision number.</param>
+/// <param name="DisplayName">Public display name.</param>
+/// <param name="ShortDescription">Short public description.</param>
+/// <param name="Description">Full public description.</param>
+/// <param name="GenreDisplay">Display-oriented genre text.</param>
+/// <param name="MinPlayers">Minimum player count.</param>
+/// <param name="MaxPlayers">Maximum player count.</param>
+/// <param name="PlayerCountDisplay">Derived public player-count display.</param>
+/// <param name="AgeRatingAuthority">Age-rating authority such as ESRB or PEGI.</param>
+/// <param name="AgeRatingValue">Authority-specific age rating value.</param>
+/// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="AgeDisplay">Derived public age display.</param>
+/// <param name="CardImageUrl">Card/list image URL when configured.</param>
+/// <param name="MediaAssets">Configured title media assets.</param>
+/// <param name="CurrentRelease">Currently active public release when present.</param>
+/// <param name="CurrentReleaseId">Currently active release identifier when present.</param>
+/// <param name="CreatedAt">UTC timestamp when the title was created.</param>
+/// <param name="UpdatedAt">UTC timestamp when the title was last updated.</param>
+internal sealed record DeveloperTitleDto(
+    Guid Id,
+    Guid OrganizationId,
+    string OrganizationSlug,
+    string Slug,
+    string ContentKind,
+    string LifecycleStatus,
+    string Visibility,
+    int CurrentMetadataRevision,
+    string DisplayName,
+    string ShortDescription,
+    string? Description,
+    string GenreDisplay,
+    int MinPlayers,
+    int MaxPlayers,
+    string PlayerCountDisplay,
+    string AgeRatingAuthority,
+    string AgeRatingValue,
+    int MinAgeYears,
+    string AgeDisplay,
+    string? CardImageUrl,
+    IReadOnlyList<TitleMediaAssetDto> MediaAssets,
+    CurrentTitleReleaseDto? CurrentRelease,
+    Guid? CurrentReleaseId,
     DateTime? CreatedAt,
     DateTime? UpdatedAt);
 
@@ -622,7 +719,7 @@ internal sealed record DeveloperTitleListResponse(IReadOnlyList<CatalogTitleSumm
 /// Response wrapper for a developer-visible title.
 /// </summary>
 /// <param name="Title">Title details.</param>
-internal sealed record DeveloperTitleResponse(CatalogTitleDto Title);
+internal sealed record DeveloperTitleResponse(DeveloperTitleDto Title);
 
 /// <summary>
 /// Metadata revision DTO.

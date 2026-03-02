@@ -4,8 +4,8 @@ A backend service for third party developers for the Board ecosystem to use to r
 
 Current implementation status:
 
-- implemented now: health endpoints, Keycloak-backed identity/auth foundation, Wave 1 persistence for `users` and `user_board_profiles`, Wave 2 organizations and memberships, and Wave 3 titles with versioned metadata
-- planned next: Wave 4 media, releases, and APK artifacts
+- implemented now: health endpoints, Keycloak-backed identity/auth foundation, Wave 1 persistence for `users` and `user_board_profiles`, Wave 2 organizations and memberships, and Waves 3 and 4 title/catalog persistence
+- planned next: Wave 5 external integration connections/bindings
 
 ## Table of Contents
 
@@ -58,7 +58,7 @@ Notes:
 - Override with env var `ConnectionStrings__BoardLibrary` if needed.
 - Override Keycloak settings with `Authentication__Keycloak__*` environment variables if needed.
 - Authentication data ownership is documented in [`backend/docs/auth-data-ownership.md`](docs/auth-data-ownership.md).
-- Wave 3 catalog/title schema behavior is documented in [`backend/docs/title-catalog-schema.md`](docs/title-catalog-schema.md).
+- Current catalog/title schema behavior is documented in [`backend/docs/title-catalog-schema.md`](docs/title-catalog-schema.md).
 
 Local Keycloak bootstrap defaults:
 

@@ -28,13 +28,14 @@ It is **not** intended to duplicate every column/constraint from EF Core migrati
 
 ## Current Status
 
-As of March 1, 2026:
+As of March 2, 2026:
 
 - the backend implements a Keycloak-backed API/authentication foundation
 - the backend implements Wave 1 EF Core persistence, migrations, and the application-owned identity projection plus Board profile linkage
 - the backend now also implements Wave 2 organizations and memberships
 - the backend now also implements Wave 3 titles and versioned metadata
-- the later wave definitions below are planned schema implementation waves, while Waves 1 through 3 are now the implemented baseline
+- the backend now also implements Wave 4 title media assets, releases, and APK artifact metadata
+- the later wave definitions below are planned schema implementation waves, while Waves 1 through 4 are now the implemented baseline
 
 Important alignment rule:
 
@@ -170,6 +171,8 @@ Key notes:
 
 ### Wave 4: Media + Releases + Artifacts
 
+Status: implemented on March 2, 2026.
+
 Tables:
 
 - `title_media_assets`
@@ -179,8 +182,11 @@ Tables:
 Key notes:
 
 - `title_media_assets.media_role` supports Board-style slots (`card`, `hero`, `logo`).
-- `title_releases` can reference a metadata snapshot (`metadata_version_id`) to preserve historical display data alignment.
-- `release_artifacts` starts with `apk` only, but modeled to expand later.
+- `title_releases` references a metadata snapshot (`metadata_version_id`) to preserve historical display data alignment.
+- `titles.current_release_id` explicitly identifies the active published release and is constrained to the same title.
+- `release_artifacts` starts with `apk` only, but is modeled to expand later.
+- artifact rows currently store install metadata only (`package_name`, `version_code`, optional hash/size); delivery/download URLs remain out of scope for this wave.
+- the implementation migration is [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302010127_Wave4MediaReleasesArtifacts.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302010127_Wave4MediaReleasesArtifacts.cs).
 
 ### Wave 5: External Integrations (Content Hosting)
 
@@ -311,9 +317,9 @@ Recommended developer workflow (schema changes):
 Planned next backend work items (code-first):
 
 1. Keep Keycloak realm import aligned with the backend platform role catalog and future brokered SSO providers
-2. Implement Wave 4 entity types + configurations for `title_media_assets`, `title_releases`, and `release_artifacts`
-3. Generate the Wave 4 migration
-4. Add integration tests for media, release, artifact, and semver constraints and behaviors
-5. Implement Wave 5 incrementally after Wave 4 is stable
+2. Design and implement Wave 5 external integration entities and API flows
+3. Define how Board-device delivery/install should relate to release artifacts before adding artifact URLs
+4. Add contract and backend coverage for integration binding edge cases once Wave 5 starts
+5. Reassess commerce scope only after integration and device-install constraints are better understood
 
 This plan keeps database schema definition fully reproducible from code while minimizing documentation duplication.

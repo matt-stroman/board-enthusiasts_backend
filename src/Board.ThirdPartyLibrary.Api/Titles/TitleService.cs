@@ -127,6 +127,136 @@ internal interface ITitleService
         Guid titleId,
         int revisionNumber,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists media assets for a title when the caller is authorized to manage it.
+    /// </summary>
+    Task<TitleMediaAssetListResult> ListMediaAssetsAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates or updates a fixed-slot media asset for a title.
+    /// </summary>
+    Task<TitleMediaAssetMutationResult> UpsertMediaAssetAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        string mediaRole,
+        UpsertTitleMediaAssetCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a fixed-slot media asset from a title.
+    /// </summary>
+    Task<TitleMediaAssetMutationResult> DeleteMediaAssetAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        string mediaRole,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists releases for a title when the caller is authorized to manage it.
+    /// </summary>
+    Task<TitleReleaseListResult> ListReleasesAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a specific release for a title when the caller is authorized to manage it.
+    /// </summary>
+    Task<TitleReleaseMutationResult> GetReleaseAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new draft release for a title.
+    /// </summary>
+    Task<TitleReleaseMutationResult> CreateReleaseAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        CreateTitleReleaseCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing draft release for a title.
+    /// </summary>
+    Task<TitleReleaseMutationResult> UpdateReleaseAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        UpdateTitleReleaseCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes a draft release for a title.
+    /// </summary>
+    Task<TitleReleaseMutationResult> PublishReleaseAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Activates a published release as the title's current release.
+    /// </summary>
+    Task<TitleMutationResult> ActivateReleaseAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Withdraws a published release from active use.
+    /// </summary>
+    Task<TitleReleaseMutationResult> WithdrawReleaseAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists artifacts for a release when the caller is authorized to manage it.
+    /// </summary>
+    Task<ReleaseArtifactListResult> ListReleaseArtifactsAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new artifact for a draft release.
+    /// </summary>
+    Task<ReleaseArtifactMutationResult> CreateReleaseArtifactAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        UpsertReleaseArtifactCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing artifact on a draft release.
+    /// </summary>
+    Task<ReleaseArtifactMutationResult> UpdateReleaseArtifactAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        Guid artifactId,
+        UpsertReleaseArtifactCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes an existing artifact from a draft release.
+    /// </summary>
+    Task<ReleaseArtifactMutationResult> DeleteReleaseArtifactAsync(
+        IEnumerable<Claim> claims,
+        Guid titleId,
+        Guid releaseId,
+        Guid artifactId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -134,7 +264,7 @@ internal interface ITitleService
 /// </summary>
 /// <param name="dbContext">Application database context.</param>
 /// <param name="identityPersistenceService">Current-user projection helper.</param>
-internal sealed class TitleService(
+internal sealed partial class TitleService(
     BoardLibraryDbContext dbContext,
     IIdentityPersistenceService identityPersistenceService) : ITitleService
 {
@@ -147,6 +277,7 @@ internal sealed class TitleService(
             .AsNoTracking()
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
+            .Include(candidate => candidate.MediaAssets)
             .Where(candidate =>
                 candidate.CurrentMetadataVersionId != null &&
                 candidate.CurrentMetadataVersion != null &&
@@ -180,6 +311,9 @@ internal sealed class TitleService(
             .AsNoTracking()
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
+            .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.CurrentRelease)
+                .ThenInclude(candidate => candidate!.MetadataVersion)
             .SingleOrDefaultAsync(
                 candidate =>
                     candidate.Organization.Slug == organizationSlug &&
@@ -219,6 +353,7 @@ internal sealed class TitleService(
             .AsNoTracking()
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
+            .Include(candidate => candidate.MediaAssets)
             .Where(candidate => candidate.OrganizationId == organizationId && candidate.CurrentMetadataVersionId != null)
             .OrderBy(candidate => candidate.CurrentMetadataVersion!.DisplayName)
             .Select(candidate => MapTitle(candidate, includeDescription: false))
@@ -508,6 +643,9 @@ internal sealed class TitleService(
         var title = await dbContext.Titles
             .Include(candidate => candidate.Organization)
             .Include(candidate => candidate.CurrentMetadataVersion)
+            .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.CurrentRelease)
+                .ThenInclude(candidate => candidate!.MetadataVersion)
             .SingleOrDefaultAsync(candidate => candidate.Id == titleId, cancellationToken);
 
         if (title is null)
@@ -583,6 +721,15 @@ internal sealed class TitleService(
             metadataVersion.AgeRatingAuthority,
             metadataVersion.AgeRatingValue,
             metadataVersion.MinAgeYears,
+            title.CurrentReleaseId,
+            title.MediaAssets
+                .SingleOrDefault(candidate => candidate.MediaRole == TitleMediaRoles.Card)
+                ?.SourceUrl,
+            title.MediaAssets
+                .OrderBy(candidate => candidate.MediaRole)
+                .Select(MapMediaAsset)
+                .ToArray(),
+            MapCurrentRelease(title.CurrentRelease),
             includeDescription ? title.CreatedAtUtc : null,
             includeDescription ? title.UpdatedAtUtc : null);
 
@@ -683,6 +830,10 @@ internal sealed record UpsertTitleMetadataCommand(
 /// <param name="AgeRatingAuthority">Age rating authority such as ESRB or PEGI.</param>
 /// <param name="AgeRatingValue">Authority-specific age rating value.</param>
 /// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="CurrentReleaseId">Currently active release identifier when present.</param>
+/// <param name="CardImageUrl">Card/list image URL when configured.</param>
+/// <param name="MediaAssets">Configured title media assets.</param>
+/// <param name="CurrentRelease">Currently active public release when present.</param>
 /// <param name="CreatedAtUtc">UTC creation timestamp when requested.</param>
 /// <param name="UpdatedAtUtc">UTC update timestamp when requested.</param>
 internal sealed record TitleSnapshot(
@@ -703,6 +854,10 @@ internal sealed record TitleSnapshot(
     string AgeRatingAuthority,
     string AgeRatingValue,
     int MinAgeYears,
+    Guid? CurrentReleaseId,
+    string? CardImageUrl,
+    IReadOnlyList<TitleMediaAssetSnapshot> MediaAssets,
+    CurrentTitleReleaseSnapshot? CurrentRelease,
     DateTime? CreatedAtUtc,
     DateTime? UpdatedAtUtc);
 
@@ -746,7 +901,8 @@ internal sealed record TitleMetadataVersionSnapshot(
 /// <param name="Title">Returned title snapshot when available.</param>
 internal sealed record TitleMutationResult(
     TitleMutationStatus Status,
-    TitleSnapshot? Title = null);
+    TitleSnapshot? Title = null,
+    string? ErrorCode = null);
 
 /// <summary>
 /// Result wrapper for organization title listings.

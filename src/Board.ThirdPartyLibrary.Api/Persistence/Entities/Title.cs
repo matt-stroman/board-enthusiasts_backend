@@ -41,6 +41,11 @@ internal sealed class Title
     public Guid? CurrentMetadataVersionId { get; set; }
 
     /// <summary>
+    /// Gets or sets the currently active release identifier.
+    /// </summary>
+    public Guid? CurrentReleaseId { get; set; }
+
+    /// <summary>
     /// Gets or sets the UTC creation timestamp.
     /// </summary>
     public DateTime CreatedAtUtc { get; set; }
@@ -61,7 +66,22 @@ internal sealed class Title
     public TitleMetadataVersion? CurrentMetadataVersion { get; set; }
 
     /// <summary>
+    /// Gets or sets the currently active release.
+    /// </summary>
+    public TitleRelease? CurrentRelease { get; set; }
+
+    /// <summary>
     /// Gets or sets all metadata revisions associated with the title.
     /// </summary>
     public ICollection<TitleMetadataVersion> MetadataVersions { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets all media assets associated with the title.
+    /// </summary>
+    public ICollection<TitleMediaAsset> MediaAssets { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets all releases associated with the title.
+    /// </summary>
+    public ICollection<TitleRelease> Releases { get; set; } = [];
 }

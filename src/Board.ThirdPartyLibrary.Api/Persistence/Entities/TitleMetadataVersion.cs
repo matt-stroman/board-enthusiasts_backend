@@ -84,4 +84,9 @@ internal sealed class TitleMetadataVersion
     /// Gets or sets the parent title.
     /// </summary>
     public Title Title { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the releases that capture this metadata revision.
+    /// </summary>
+    public ICollection<TitleRelease> Releases { get; set; } = [];
 }
