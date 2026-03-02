@@ -72,7 +72,7 @@ Implemented now:
 
 Still planned within MVP:
 
-- external acquisition connections/bindings for publisher-agnostic title linking
+- supported publisher registry plus external acquisition connections/bindings for publisher-agnostic title linking
 
 Deferred beyond the current implemented baseline:
 
@@ -196,17 +196,22 @@ Key notes:
 
 Tables:
 
+- `supported_publishers`
 - `integration_connections`
 - `title_integration_bindings`
 
 Key notes:
 
 - Focus on publisher-agnostic external acquisition binding, not provider-specific checkout orchestration.
+- `supported_publishers` should act as a platform-managed canonical registry for publishers/stores that the library recognizes and can present consistently in UI.
 - Organization-level `integration_connections` should be reusable references to external publishers/stores.
+- `integration_connections.supported_publisher_id` should be optional so a developer can either choose a canonical supported publisher or provide custom publisher details when no supported option fits.
+- Wave 5 should support a developer UI flow where the publisher/store choice comes from a standardized dropdown backed by `supported_publishers`, with a `custom` path that captures organization-owned custom publisher details on the connection itself.
 - Title-level `title_integration_bindings` should provide the player-facing acquisition target for a title, such as an external store page URL.
 - Wave 5 should model where a title is acquired, not yet how payment, download, or installation are executed inside the library.
+- Shared custom-publisher creation endpoints should remain out of scope for Wave 5; only the platform-managed registry and organization-owned custom connection details are needed.
 - Keep provider-specific settings in `jsonb`, but do not require deep provider logic for MVP.
-- Support both named providers (for example `itch_io`) and generic/custom publisher connections.
+- Avoid a hard-coded provider enum for Wave 5; the supported registry plus custom fallback should handle standardization without enum churn.
 - Public API exposure should remain limited to acquisition metadata appropriate for link-out flows.
 
 ### Wave 6: Unified Commerce And Entitlements
@@ -243,7 +248,7 @@ Wave 5 should be designed from the capabilities that real third-party platforms 
 
 Current planning conclusion:
 
-- design Wave 5 around generic external acquisition bindings first
+- design Wave 5 around a supported publisher registry plus generic external acquisition bindings
 - treat provider-specific payment/download/install behavior as optional future enhancements
 - avoid requiring any publisher-specific API before the generic link-out model ships
 
@@ -252,6 +257,12 @@ Research summary:
 - itch.io officially exposes API keys and OAuth applications for API access, and also provides embeddable widgets suitable for external acquisition/link-out experiences. This suggests itch.io can support richer future integrations, but Wave 5 does not need to depend on them for MVP.
 - Game Jolt officially exposes a Game API oriented around game-side features such as sessions, scores, trophies, data storage, and package retrieval. That is useful context, but it is not the same as a generalized storefront checkout/install API for the library.
 - Humble Bundle remains important as a publisher/store candidate, but a public self-serve integration/API surface was not confirmed during this planning pass from accessible official documentation. For Wave 5 planning, treat Humble as compatible with generic external acquisition URLs unless partner-only capabilities are confirmed later.
+
+Registry guidance:
+
+- the platform should own a canonical `supported_publishers` registry for providers the library wants to present consistently
+- developers should still be able to configure a custom publisher/store connection when no supported registry entry fits
+- custom publisher details should live on the organization-owned connection for Wave 5 rather than creating new shared registry entries through API
 
 Maintained research notes for this planning pass live in [`planning/wave-5-publisher-research-notes.md`](../../planning/wave-5-publisher-research-notes.md).
 
@@ -371,8 +382,8 @@ Recommended developer workflow (schema changes):
 Planned next backend work items (code-first):
 
 1. Keep Keycloak realm import aligned with the backend platform role catalog and future brokered SSO providers
-2. Finalize the Wave 5 publisher capability matrix before locking the acquisition-binding contract
-3. Design and implement Wave 5 external acquisition entities and API flows
+2. Finalize the initial `supported_publishers` registry shape and seed strategy before locking the Wave 5 contract
+3. Design and implement Wave 5 supported publisher, integration connection, and title acquisition binding entities/API flows
 4. Define Wave 6 commerce/entitlement boundaries before adding payment-provider-specific fields
 5. Define how Wave 7 Board-native delivery/install should relate to release artifacts before adding artifact URLs
 
