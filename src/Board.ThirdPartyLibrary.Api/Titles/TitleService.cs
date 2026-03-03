@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Organizations;
 using Board.ThirdPartyLibrary.Api.Persistence;
@@ -813,7 +814,7 @@ internal sealed partial class TitleService(
 
     private static string GetRequiredSubject(IEnumerable<Claim> claims)
     {
-        var subject = claims.FirstOrDefault(claim => string.Equals(claim.Type, "sub", StringComparison.OrdinalIgnoreCase))?.Value;
+        var subject = ClaimValueResolver.GetSubject(claims);
 
         if (string.IsNullOrWhiteSpace(subject))
         {
