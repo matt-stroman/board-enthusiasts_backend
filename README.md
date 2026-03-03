@@ -15,7 +15,7 @@ Current implementation status:
 
 ## Local development (Phase 2)
 
-Prereq: local PostgreSQL and Keycloak running (see [`backend/docker-compose.yml`](docker-compose.yml)).
+Prereq: local PostgreSQL, Mailpit, and Keycloak running (see [`backend/docker-compose.yml`](docker-compose.yml)).
 
 Recommended (repo root, automated):
 
@@ -66,6 +66,7 @@ Local Keycloak bootstrap defaults:
 - Keycloak admin console: [`https://localhost:8443/admin/`](https://localhost:8443/admin/)
 - Keycloak bootstrap admin: `admin` / `admin`
 - Seeded realm user for login testing: `local-admin` / `ChangeMe!123`
+- Local verification email inbox: [`https://localhost:8025`](https://localhost:8025)
 
 To verify the browser login flow locally, open:
 

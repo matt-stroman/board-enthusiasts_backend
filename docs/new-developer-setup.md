@@ -45,7 +45,7 @@ Recommended workflow in VS Code:
 
 The configured pre-launch tasks will:
 
-- start/reuse the `board_tpl_postgres` and `board_tpl_keycloak` containers
+- start/reuse the `board_tpl_postgres`, `board_tpl_mailpit`, and `board_tpl_keycloak` containers
 - build the backend in the selected configuration
 - launch the API in the integrated terminal
 
@@ -79,7 +79,7 @@ python ./scripts/dev.py up
 What this does:
 
 - `bootstrap`: initializes git submodules (if needed) and restores the backend solution
-- `up`: starts local PostgreSQL and Keycloak (or reuses existing `board_tpl_postgres` / `board_tpl_keycloak` containers) and runs the backend API
+- `up`: starts local PostgreSQL, Mailpit, and Keycloak (or reuses existing `board_tpl_postgres` / `board_tpl_mailpit` / `board_tpl_keycloak` containers) and runs the backend API
 - together, these commands provide a reliable first-time setup + startup flow
 - for convenience, `python ./scripts/dev.py up --bootstrap` is supported
 
@@ -144,6 +144,7 @@ Start PostgreSQL:
 
 ```powershell
 docker compose -f ./backend/docker-compose.yml up -d postgres
+docker compose -f ./backend/docker-compose.yml up -d mailpit
 docker compose -f ./backend/docker-compose.yml up -d keycloak
 ```
 
@@ -180,6 +181,7 @@ Check container logs:
 
 ```powershell
 docker logs board_tpl_postgres
+docker logs board_tpl_mailpit
 docker logs board_tpl_keycloak
 ```
 
@@ -212,14 +214,16 @@ The local compose file imports a development realm for repeatable auth testing.
 - Keycloak admin console: [`https://localhost:8443/admin/`](https://localhost:8443/admin/)
 - Keycloak bootstrap admin credentials: `admin` / `admin`
 - Seeded local realm user credentials: `local-admin` / `ChangeMe!123`
+- Local verification email inbox: [`https://localhost:8025`](https://localhost:8025)
 
 To exercise the backend login flow locally:
 
 1. Start the stack with `python ./scripts/dev.py up`.
 2. Open `https://localhost:7085/identity/auth/login` in a browser.
 3. Sign in with the seeded realm user, or register a new user from the hosted Keycloak screen.
-4. Confirm the callback response at `https://localhost:7085/identity/auth/callback`.
-5. Use the returned access token against `GET /identity/me`.
+4. If you register a new user, open the verification email in Mailpit at [`https://localhost:8025`](https://localhost:8025).
+5. Confirm the callback response at `https://localhost:7085/identity/auth/callback`.
+6. Use the returned access token against `GET /identity/me`.
 
 ### VS Code warns about HTTPS development certificate
 

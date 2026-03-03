@@ -8,6 +8,15 @@
   "resetPasswordAllowed": true,
   "verifyEmail": true,
   "rememberMe": true,
+  "smtpServer": {
+    "from": "no-reply@boardtpl.local",
+    "fromDisplayName": "Board Third Party Library",
+    "host": "mailpit",
+    "port": "1025",
+    "auth": "false",
+    "starttls": "true",
+    "ssl": "false"
+  },
   "roles": {
     "realm": [
       {

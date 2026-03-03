@@ -16,6 +16,41 @@ services:
       - ./postgres/certs/server.key:/certs/server.key:ro
       - ./postgres/pg_hba_tls.conf:/etc/postgresql/pg_hba_tls.conf:ro
 
+  mailpit:
+    image: axllent/mailpit:v1.29.2
+    container_name: board_tpl_mailpit
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - /mailpit
+        - readyz
+        - --https
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    command:
+      - --listen
+      - "[::]:8025"
+      - --ui-tls-cert
+      - /certs/server.crt
+      - --ui-tls-key
+      - /certs/server.key
+      - --smtp
+      - "[::]:1025"
+      - --smtp-tls-cert
+      - /certs/server.crt
+      - --smtp-tls-key
+      - /certs/server.key
+      - --smtp-require-starttls
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    volumes:
+      - ./mailpit/certs/server.crt:/certs/server.crt:ro
+      - ./mailpit/certs/server.key:/certs/server.key:ro
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.5.2
     container_name: board_tpl_keycloak
@@ -30,12 +65,14 @@ services:
       KC_HTTP_ENABLED: "false"
       KC_HTTPS_KEY_STORE_FILE: /opt/keycloak/conf/boardtpl-localhost-devcert.pfx
       KC_HTTPS_KEY_STORE_PASSWORD: boardtpl-devcert
+      KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/truststores/mailpit.crt
       QUARKUS_HTTP_HTTP2: "true"
     ports:
       - "8443:8443"
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import:ro
       - ./keycloak/certs/boardtpl-localhost-devcert.pfx:/opt/keycloak/conf/boardtpl-localhost-devcert.pfx:ro
+      - ./mailpit/certs/server.crt:/opt/keycloak/conf/truststores/mailpit.crt:ro
 
 volumes:
   board_tpl_pg_data:
