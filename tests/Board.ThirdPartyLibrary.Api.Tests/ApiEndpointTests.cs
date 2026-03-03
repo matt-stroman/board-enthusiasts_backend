@@ -416,6 +416,37 @@ public sealed class ApiEndpointTests
     }
 
     /// <summary>
+    /// Verifies the current-user endpoint accepts the framework-mapped nameidentifier claim as the user subject.
+    /// </summary>
+    [Fact]
+    public async Task CurrentUserEndpoint_WithMappedSubjectClaim_ReturnsProfile()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim(ClaimTypes.NameIdentifier, "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim("email", "admin@boardtpl.local"),
+                new Claim("email_verified", "true"),
+                new Claim(ClaimTypes.Role, "developer")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        Assert.Equal("user-123", root.GetProperty("subject").GetString());
+        Assert.Equal("Local Admin", root.GetProperty("displayName").GetString());
+        Assert.Equal("admin@boardtpl.local", root.GetProperty("email").GetString());
+        Assert.True(root.GetProperty("emailVerified").GetBoolean());
+    }
+
+    /// <summary>
     /// Verifies the current-user endpoint creates or updates the local user projection.
     /// </summary>
     [Fact]

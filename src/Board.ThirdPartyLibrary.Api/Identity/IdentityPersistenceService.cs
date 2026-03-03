@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -160,7 +161,7 @@ internal sealed class IdentityPersistenceService(BoardLibraryDbContext dbContext
     private static UserSnapshot BuildSnapshot(IEnumerable<Claim> claims)
     {
         var claimList = claims.ToList();
-        var subject = GetClaimValue(claimList, "sub");
+        var subject = ClaimValueResolver.GetSubject(claimList);
 
         if (string.IsNullOrWhiteSpace(subject))
         {
@@ -169,10 +170,10 @@ internal sealed class IdentityPersistenceService(BoardLibraryDbContext dbContext
 
         return new UserSnapshot(
             Subject: subject,
-            DisplayName: GetClaimValue(claimList, "name") ?? GetClaimValue(claimList, "preferred_username"),
-            Email: GetClaimValue(claimList, "email"),
-            EmailVerified: bool.TryParse(GetClaimValue(claimList, "email_verified"), out var emailVerified) && emailVerified,
-            IdentityProvider: GetClaimValue(claimList, "identity_provider") ?? GetClaimValue(claimList, "idp"));
+            DisplayName: ClaimValueResolver.GetClaimValue(claimList, "name") ?? ClaimValueResolver.GetClaimValue(claimList, "preferred_username"),
+            Email: ClaimValueResolver.GetClaimValue(claimList, "email"),
+            EmailVerified: bool.TryParse(ClaimValueResolver.GetClaimValue(claimList, "email_verified"), out var emailVerified) && emailVerified,
+            IdentityProvider: ClaimValueResolver.GetClaimValue(claimList, "identity_provider") ?? ClaimValueResolver.GetClaimValue(claimList, "idp"));
     }
 
     private static BoardProfileSnapshot MapSnapshot(UserBoardProfile profile) =>
@@ -182,9 +183,6 @@ internal sealed class IdentityPersistenceService(BoardLibraryDbContext dbContext
             profile.AvatarUrl,
             profile.LinkedAtUtc,
             profile.LastSyncedAtUtc);
-
-    private static string? GetClaimValue(IEnumerable<Claim> claims, string type) =>
-        claims.FirstOrDefault(claim => string.Equals(claim.Type, type, StringComparison.OrdinalIgnoreCase))?.Value;
 }
 
 /// <summary>

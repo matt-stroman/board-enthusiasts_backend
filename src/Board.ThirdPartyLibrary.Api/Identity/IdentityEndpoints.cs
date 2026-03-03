@@ -238,11 +238,11 @@ internal static class IdentityEndpoints
         var claimList = claims.ToList();
 
         return new CurrentUserResponse(
-            Subject: GetClaimValue(claimList, "sub") ?? string.Empty,
-            DisplayName: GetClaimValue(claimList, "name") ?? GetClaimValue(claimList, "preferred_username") ?? string.Empty,
-            Email: GetClaimValue(claimList, "email"),
-            EmailVerified: bool.TryParse(GetClaimValue(claimList, "email_verified"), out var emailVerified) && emailVerified,
-            IdentityProvider: GetClaimValue(claimList, "identity_provider") ?? GetClaimValue(claimList, "idp"),
+            Subject: ClaimValueResolver.GetSubject(claimList) ?? string.Empty,
+            DisplayName: ClaimValueResolver.GetClaimValue(claimList, "name") ?? ClaimValueResolver.GetClaimValue(claimList, "preferred_username") ?? string.Empty,
+            Email: ClaimValueResolver.GetClaimValue(claimList, "email"),
+            EmailVerified: bool.TryParse(ClaimValueResolver.GetClaimValue(claimList, "email_verified"), out var emailVerified) && emailVerified,
+            IdentityProvider: ClaimValueResolver.GetClaimValue(claimList, "identity_provider") ?? ClaimValueResolver.GetClaimValue(claimList, "idp"),
             Roles: claimList
                 .Where(claim => claim.Type == ClaimTypes.Role)
                 .Select(claim => claim.Value)
@@ -263,9 +263,6 @@ internal static class IdentityEndpoints
                 Detail: detail,
                 Code: code),
             statusCode: statusCode);
-
-    private static string? GetClaimValue(IEnumerable<Claim> claims, string type) =>
-        claims.FirstOrDefault(claim => string.Equals(claim.Type, type, StringComparison.OrdinalIgnoreCase))?.Value;
 }
 
 /// <summary>

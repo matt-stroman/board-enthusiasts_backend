@@ -65,6 +65,7 @@ builder.Services
     {
         options.Authority = authority;
         options.RequireHttpsMetadata = keycloakOptions.RequireHttpsMetadata;
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateAudience = false,

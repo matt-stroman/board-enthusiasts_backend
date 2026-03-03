@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Organizations;
 using Board.ThirdPartyLibrary.Api.Persistence;
@@ -635,7 +636,7 @@ internal sealed class AcquisitionService(
     private async Task<AppUser> EnsureActorAsync(IEnumerable<Claim> claims, CancellationToken cancellationToken)
     {
         await identityPersistenceService.EnsureCurrentUserProjectionAsync(claims, cancellationToken);
-        var subject = claims.FirstOrDefault(claim => string.Equals(claim.Type, "sub", StringComparison.OrdinalIgnoreCase))?.Value;
+        var subject = ClaimValueResolver.GetSubject(claims);
 
         if (string.IsNullOrWhiteSpace(subject))
         {
