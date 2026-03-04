@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using Board.ThirdPartyLibrary.Api.Identity;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Board.ThirdPartyLibrary.Api.Organizations;
@@ -52,10 +53,11 @@ internal static partial class OrganizationEndpoints
         publicGroup.MapPost("/", [Authorize] async (
             ClaimsPrincipal user,
             CreateOrganizationRequest request,
+            IDeveloperEnrollmentService developerEnrollmentService,
             IOrganizationService organizationService,
             CancellationToken cancellationToken) =>
         {
-            if (!HasDeveloperCapabilities(user.Claims))
+            if (!await developerEnrollmentService.HasDeveloperAccessAsync(user.Claims, cancellationToken))
             {
                 return Results.Forbid();
             }
@@ -313,12 +315,6 @@ internal static partial class OrganizationEndpoints
 
         return errors;
     }
-
-    private static bool HasDeveloperCapabilities(IEnumerable<Claim> claims) =>
-        claims.Any(claim =>
-            claim.Type == ClaimTypes.Role &&
-            (string.Equals(claim.Value, "developer", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(claim.Value, "admin", StringComparison.OrdinalIgnoreCase)));
 
     private static string NormalizeSlug(string slug) => slug.Trim().ToLowerInvariant();
 

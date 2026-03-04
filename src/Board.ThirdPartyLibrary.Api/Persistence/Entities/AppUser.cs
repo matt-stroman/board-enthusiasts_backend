@@ -51,7 +51,17 @@ internal sealed class AppUser
     public UserBoardProfile? BoardProfile { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional developer enrollment request for this user.
+    /// </summary>
+    public DeveloperEnrollmentRequest? DeveloperEnrollmentRequest { get; set; }
+
+    /// <summary>
     /// Gets or sets the organization memberships for this user projection.
     /// </summary>
     public ICollection<OrganizationMembership> OrganizationMemberships { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets developer enrollment requests this user has reviewed.
+    /// </summary>
+    public ICollection<DeveloperEnrollmentRequest> ReviewedDeveloperEnrollmentRequests { get; set; } = [];
 }

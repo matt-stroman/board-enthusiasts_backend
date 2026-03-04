@@ -21,6 +21,11 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
     public DbSet<UserBoardProfile> UserBoardProfiles => Set<UserBoardProfile>();
 
     /// <summary>
+    /// Gets application-owned developer enrollment requests.
+    /// </summary>
+    public DbSet<DeveloperEnrollmentRequest> DeveloperEnrollmentRequests => Set<DeveloperEnrollmentRequest>();
+
+    /// <summary>
     /// Gets developer organizations.
     /// </summary>
     public DbSet<Organization> Organizations => Set<Organization>();

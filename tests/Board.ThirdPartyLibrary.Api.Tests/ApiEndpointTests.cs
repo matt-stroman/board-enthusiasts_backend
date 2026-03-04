@@ -6,7 +6,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
+using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Persistence;
+using Board.ThirdPartyLibrary.Api.Persistence.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -480,21 +482,49 @@ public sealed class ApiEndpointTests
     }
 
     /// <summary>
-    /// Verifies the developer-enrollment endpoint requires authentication.
+    /// Verifies the developer-enrollment status endpoint requires authentication.
     /// </summary>
     [Fact]
-    public async Task DeveloperEnrollmentEndpoint_WithoutBearerToken_ReturnsUnauthorized()
+    public async Task DeveloperEnrollmentStatusEndpoint_WithoutBearerToken_ReturnsUnauthorized()
     {
         using var factory = new TestApiFactory();
         using var client = factory.CreateClient();
 
-        using var response = await client.PostAsync("/identity/me/developer-enrollment", null);
+        using var response = await client.GetAsync("/identity/me/developer-enrollment");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     /// <summary>
-    /// Verifies callers who already have developer access receive an already-enabled response.
+    /// Verifies players without an existing request see the not-requested state.
+    /// </summary>
+    [Fact]
+    public async Task DeveloperEnrollmentStatusEndpoint_WithoutExistingRequest_ReturnsNotRequested()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Player One"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me/developer-enrollment");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var enrollment = document.RootElement.GetProperty("developerEnrollment");
+        Assert.Equal("not_requested", enrollment.GetProperty("status").GetString());
+        Assert.False(enrollment.GetProperty("developerAccessEnabled").GetBoolean());
+        Assert.True(enrollment.GetProperty("canSubmitRequest").GetBoolean());
+    }
+
+    /// <summary>
+    /// Verifies callers who already have developer access receive an approved response.
     /// </summary>
     [Fact]
     public async Task DeveloperEnrollmentEndpoint_WithExistingDeveloperRole_ReturnsAlreadyEnabled()
@@ -523,27 +553,19 @@ public sealed class ApiEndpointTests
 
         using var document = JsonDocument.Parse(payload);
         var enrollment = document.RootElement.GetProperty("developerEnrollment");
-        Assert.Equal("enabled", enrollment.GetProperty("status").GetString());
+        Assert.Equal("approved", enrollment.GetProperty("status").GetString());
         Assert.True(enrollment.GetProperty("developerAccessEnabled").GetBoolean());
-        Assert.True(enrollment.GetProperty("alreadyEnabled").GetBoolean());
-        Assert.False(enrollment.GetProperty("sessionRefreshRequired").GetBoolean());
+        Assert.False(enrollment.GetProperty("canSubmitRequest").GetBoolean());
         Assert.Equal(0, roleClient.CallCount);
     }
 
     /// <summary>
-    /// Verifies player-only callers can enable developer access through the backend endpoint.
+    /// Verifies player-only callers create a pending request through the backend endpoint.
     /// </summary>
     [Fact]
-    public async Task DeveloperEnrollmentEndpoint_WithPlayerRole_AssignsDeveloperAccess()
+    public async Task DeveloperEnrollmentEndpoint_WithPlayerRole_CreatesPendingRequest()
     {
-        var roleClient = new StubKeycloakUserRoleClient(KeycloakUserRoleAssignmentResult.Success(alreadyAssigned: false));
-
         using var factory = new TestApiFactory(
-            configureServices: services =>
-            {
-                services.RemoveAll<IKeycloakUserRoleClient>();
-                services.AddSingleton<IKeycloakUserRoleClient>(roleClient);
-            },
             useTestAuthentication: true,
             testClaims:
             [
@@ -562,23 +584,244 @@ public sealed class ApiEndpointTests
 
         using var document = JsonDocument.Parse(payload);
         var enrollment = document.RootElement.GetProperty("developerEnrollment");
-        Assert.Equal("enabled", enrollment.GetProperty("status").GetString());
-        Assert.True(enrollment.GetProperty("developerAccessEnabled").GetBoolean());
-        Assert.False(enrollment.GetProperty("alreadyEnabled").GetBoolean());
-        Assert.True(enrollment.GetProperty("sessionRefreshRequired").GetBoolean());
-        Assert.Equal(1, roleClient.CallCount);
+        Assert.Equal("pending", enrollment.GetProperty("status").GetString());
+        Assert.False(enrollment.GetProperty("developerAccessEnabled").GetBoolean());
+        Assert.False(enrollment.GetProperty("canSubmitRequest").GetBoolean());
 
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
         var user = await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+        var request = await dbContext.DeveloperEnrollmentRequests.SingleAsync(candidate => candidate.UserId == user.Id);
+
         Assert.Equal("Player One", user.DisplayName);
+        Assert.Equal(DeveloperEnrollmentStatuses.Pending, request.Status);
     }
 
     /// <summary>
-    /// Verifies upstream Keycloak enrollment failures return a gateway problem response.
+    /// Verifies rejected requests remain rejected instead of being recreated.
     /// </summary>
     [Fact]
-    public async Task DeveloperEnrollmentEndpoint_WhenKeycloakRoleAssignmentFails_ReturnsBadGateway()
+    public async Task DeveloperEnrollmentEndpoint_WithRejectedRequest_ReturnsRejected()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Player One"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            var user = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "user-123",
+                DisplayName = "Player One",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.Users.Add(user);
+            dbContext.DeveloperEnrollmentRequests.Add(new DeveloperEnrollmentRequest
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Status = DeveloperEnrollmentStatuses.Rejected,
+                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+                ReviewedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/identity/me/developer-enrollment", null);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var enrollment = document.RootElement.GetProperty("developerEnrollment");
+        Assert.Equal("rejected", enrollment.GetProperty("status").GetString());
+        Assert.False(enrollment.GetProperty("developerAccessEnabled").GetBoolean());
+        Assert.False(enrollment.GetProperty("canSubmitRequest").GetBoolean());
+    }
+
+    /// <summary>
+    /// Verifies moderators can list developer enrollment requests.
+    /// </summary>
+    [Fact]
+    public async Task ModeratorEnrollmentListEndpoint_WithModeratorRole_ReturnsRequests()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "moderator-123"),
+                new Claim("name", "Moderator User"),
+                new Claim(ClaimTypes.Role, "moderator")
+            ]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            var moderator = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "moderator-123",
+                DisplayName = "Moderator User",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            var applicant = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "player-123",
+                DisplayName = "Player One",
+                Email = "player@boardtpl.local",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.Users.AddRange(moderator, applicant);
+            dbContext.DeveloperEnrollmentRequests.Add(new DeveloperEnrollmentRequest
+            {
+                Id = Guid.Parse("2c54f9bb-1fdf-48e5-8cf0-a8b77f6174af"),
+                UserId = applicant.Id,
+                Status = DeveloperEnrollmentStatuses.Pending,
+                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync("/moderation/developer-enrollment-requests");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var requests = document.RootElement.GetProperty("requests").EnumerateArray().ToList();
+        Assert.Single(requests);
+        Assert.Equal("player-123", requests[0].GetProperty("applicantSubject").GetString());
+        Assert.Equal("pending", requests[0].GetProperty("status").GetString());
+    }
+
+    /// <summary>
+    /// Verifies non-moderators cannot list developer enrollment requests.
+    /// </summary>
+    [Fact]
+    public async Task ModeratorEnrollmentListEndpoint_WithoutModeratorRole_ReturnsForbidden()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "player-123"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/moderation/developer-enrollment-requests");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.Equal("moderator_access_required", document.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>
+    /// Verifies moderators can approve pending developer enrollment requests.
+    /// </summary>
+    [Fact]
+    public async Task ModeratorApproveEnrollmentEndpoint_WithPendingRequest_ApprovesAndAssignsRole()
+    {
+        var roleClient = new StubKeycloakUserRoleClient(KeycloakUserRoleAssignmentResult.Success(alreadyAssigned: false));
+
+        using var factory = new TestApiFactory(
+            configureServices: services =>
+            {
+                services.RemoveAll<IKeycloakUserRoleClient>();
+                services.AddSingleton<IKeycloakUserRoleClient>(roleClient);
+            },
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "moderator-123"),
+                new Claim("name", "Moderator User"),
+                new Claim(ClaimTypes.Role, "moderator")
+            ]);
+
+        var requestId = Guid.Parse("2c54f9bb-1fdf-48e5-8cf0-a8b77f6174af");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            var moderator = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "moderator-123",
+                DisplayName = "Moderator User",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            var applicant = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "player-123",
+                DisplayName = "Player One",
+                Email = "player@boardtpl.local",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.Users.AddRange(moderator, applicant);
+            dbContext.DeveloperEnrollmentRequests.Add(new DeveloperEnrollmentRequest
+            {
+                Id = requestId,
+                UserId = applicant.Id,
+                Status = DeveloperEnrollmentStatuses.Pending,
+                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var response = await client.PostAsync($"/moderation/developer-enrollment-requests/{requestId}/approve", null);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var request = document.RootElement.GetProperty("developerEnrollmentRequest");
+        Assert.Equal("approved", request.GetProperty("status").GetString());
+        Assert.True(request.GetProperty("developerAccessEnabled").GetBoolean());
+        Assert.Equal(1, roleClient.CallCount);
+        Assert.Equal("player-123", roleClient.LastUserSubject);
+
+        using var approvalScope = factory.Services.CreateScope();
+        var approvalDbContext = approvalScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var persisted = await approvalDbContext.DeveloperEnrollmentRequests.SingleAsync(candidate => candidate.Id == requestId);
+        Assert.Equal(DeveloperEnrollmentStatuses.Approved, persisted.Status);
+        Assert.NotNull(persisted.ReviewedAtUtc);
+        Assert.NotNull(persisted.ReviewedByUserId);
+    }
+
+    /// <summary>
+    /// Verifies Keycloak approval failures are returned as bad gateway responses.
+    /// </summary>
+    [Fact]
+    public async Task ModeratorApproveEnrollmentEndpoint_WhenKeycloakRoleAssignmentFails_ReturnsBadGateway()
     {
         using var factory = new TestApiFactory(
             configureServices: services =>
@@ -591,13 +834,45 @@ public sealed class ApiEndpointTests
             useTestAuthentication: true,
             testClaims:
             [
-                new Claim("sub", "user-123"),
-                new Claim("name", "Player One"),
-                new Claim(ClaimTypes.Role, "player")
+                new Claim("sub", "moderator-123"),
+                new Claim(ClaimTypes.Role, "moderator")
             ]);
-        using var client = factory.CreateClient();
 
-        using var response = await client.PostAsync("/identity/me/developer-enrollment", null);
+        var requestId = Guid.Parse("2c54f9bb-1fdf-48e5-8cf0-a8b77f6174af");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            var moderator = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "moderator-123",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            var applicant = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "player-123",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.Users.AddRange(moderator, applicant);
+            dbContext.DeveloperEnrollmentRequests.Add(new DeveloperEnrollmentRequest
+            {
+                Id = requestId,
+                UserId = applicant.Id,
+                Status = DeveloperEnrollmentStatuses.Pending,
+                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var response = await client.PostAsync($"/moderation/developer-enrollment-requests/{requestId}/approve", null);
         var payload = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
@@ -931,12 +1206,15 @@ public sealed class ApiEndpointTests
 
         public int CallCount { get; private set; }
 
+        public string? LastUserSubject { get; private set; }
+
         public Task<KeycloakUserRoleAssignmentResult> EnsureRealmRoleAssignedAsync(
             string userSubject,
             string roleName,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
+            LastUserSubject = userSubject;
             return Task.FromResult(_result);
         }
     }

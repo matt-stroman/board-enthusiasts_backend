@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Persistence.Entities;
 using Microsoft.AspNetCore.Authentication;
@@ -244,6 +245,61 @@ public sealed class OrganizationEndpointTests
             });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Verifies approved developer enrollment also unlocks organization creation before a refreshed token.
+    /// </summary>
+    [Fact]
+    public async Task CreateOrganizationEndpoint_WithApprovedEnrollment_AllowsCreate()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Player One"),
+                new Claim("email", "player@boardtpl.local"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            var user = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "user-123",
+                DisplayName = "Player One",
+                Email = "player@boardtpl.local",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.Users.Add(user);
+            dbContext.DeveloperEnrollmentRequests.Add(new DeveloperEnrollmentRequest
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Status = DeveloperEnrollmentStatuses.Approved,
+                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+                ReviewedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var response = await client.PostAsJsonAsync(
+            "/organizations",
+            new
+            {
+                slug = "stellar-forge",
+                displayName = "Stellar Forge"
+            });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     /// <summary>

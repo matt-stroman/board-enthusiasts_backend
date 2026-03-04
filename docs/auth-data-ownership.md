@@ -27,7 +27,7 @@ Current implemented behavior:
 - Keycloak hosts login and self-registration.
 - Keycloak owns credentials, email verification, external identity-provider linkage, session/token lifecycle, and platform role assignment.
 - The backend validates Keycloak-issued bearer tokens and reads platform roles from JWT claims.
-- The backend may mediate current-user developer enrollment by calling Keycloak admin APIs, but Keycloak remains the source of truth for the resulting role assignment.
+- The backend may mediate current-user developer enrollment by storing application-owned request state in PostgreSQL and, on moderator approval, calling Keycloak admin APIs; Keycloak remains the source of truth for the resulting role assignment.
 - Keycloak is also the intended broker for future Google, Facebook, Steam, Epic Games, and similar SSO providers.
 - PostgreSQL is now the source of truth for the application-owned `users` projection and optional `user_board_profiles` linkage/cache.
 
@@ -56,6 +56,7 @@ PostgreSQL remains the source of truth for application-owned domain data, includ
 - payment, entitlement, and install-delivery data when those areas are implemented
 - optional Board profile linkage/cache owned by this application
 - an application user projection for linking domain records to a Keycloak subject
+- developer enrollment request status and moderation audit fields used by the application workflow
 
 Board profile persistence is implemented application data and is now part of the current API surface.
 
@@ -81,6 +82,7 @@ Important:
 
 - cached Keycloak fields in PostgreSQL should be treated as non-authoritative snapshots
 - platform authorization should continue to use Keycloak role claims unless a future local projection is justified by query/reporting needs
+- application-owned developer enrollment request records may still influence workflow gating before or alongside the eventual Keycloak role result
 
 ## Local Development Notes
 

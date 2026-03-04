@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Board.ThirdPartyLibrary.Api.Auth;
+using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Persistence.Entities;
 using Microsoft.AspNetCore.Authentication;
@@ -140,10 +141,10 @@ public sealed class IdentityPersistenceIntegrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies developer enrollment persists the local user projection and returns the enabled response.
+    /// Verifies submitting developer enrollment persists a pending request in PostgreSQL.
     /// </summary>
     [Fact]
-    public async Task DeveloperEnrollmentEndpoint_WithRealPostgres_PersistsUserProjectionAndReturnsEnabled()
+    public async Task DeveloperEnrollmentEndpoint_WithRealPostgres_PersistsPendingRequest()
     {
         await using (var migrationContext = CreateDbContext())
         {
@@ -158,13 +159,7 @@ public sealed class IdentityPersistenceIntegrationTests : IAsyncLifetime
                 new Claim("email", "player@boardtpl.local"),
                 new Claim("email_verified", "true"),
                 new Claim(ClaimTypes.Role, "player")
-            ],
-            configureServices: services =>
-            {
-                services.RemoveAll<IKeycloakUserRoleClient>();
-                services.AddSingleton<IKeycloakUserRoleClient>(
-                    new StubKeycloakUserRoleClient(KeycloakUserRoleAssignmentResult.Success(alreadyAssigned: false)));
-            });
+            ]);
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsync("/identity/me/developer-enrollment", null);
@@ -173,12 +168,86 @@ public sealed class IdentityPersistenceIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var document = JsonDocument.Parse(payload);
-        Assert.True(document.RootElement.GetProperty("developerEnrollment").GetProperty("developerAccessEnabled").GetBoolean());
-        Assert.True(document.RootElement.GetProperty("developerEnrollment").GetProperty("sessionRefreshRequired").GetBoolean());
+        Assert.Equal("pending", document.RootElement.GetProperty("developerEnrollment").GetProperty("status").GetString());
+        Assert.False(document.RootElement.GetProperty("developerEnrollment").GetProperty("developerAccessEnabled").GetBoolean());
 
         await using var dbContext = CreateDbContext();
         var user = await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == "user-456");
+        var request = await dbContext.DeveloperEnrollmentRequests.SingleAsync(candidate => candidate.UserId == user.Id);
         Assert.Equal("Player One", user.DisplayName);
+        Assert.Equal(DeveloperEnrollmentStatuses.Pending, request.Status);
+        Assert.Null(request.ReviewedAtUtc);
+    }
+
+    /// <summary>
+    /// Verifies moderator approval persists the approved state in PostgreSQL.
+    /// </summary>
+    [Fact]
+    public async Task ModeratorApproveEnrollmentEndpoint_WithRealPostgres_PersistsApprovedRequest()
+    {
+        await using (var migrationContext = CreateDbContext())
+        {
+            await migrationContext.Database.MigrateAsync();
+        }
+
+        var roleClient = new StubKeycloakUserRoleClient(KeycloakUserRoleAssignmentResult.Success(alreadyAssigned: false));
+
+        using (var seedContext = CreateDbContext())
+        {
+            var applicant = new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "player-123",
+                DisplayName = "Player One",
+                Email = "player@boardtpl.local",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            seedContext.Users.Add(applicant);
+            seedContext.DeveloperEnrollmentRequests.Add(new DeveloperEnrollmentRequest
+            {
+                Id = Guid.Parse("2c54f9bb-1fdf-48e5-8cf0-a8b77f6174af"),
+                UserId = applicant.Id,
+                Status = DeveloperEnrollmentStatuses.Pending,
+                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+            await seedContext.SaveChangesAsync();
+        }
+
+        using var factory = new RealPostgresApiFactory(
+            _postgresContainer.GetConnectionString(),
+            [
+                new Claim("sub", "moderator-123"),
+                new Claim("name", "Moderator User"),
+                new Claim(ClaimTypes.Role, "moderator")
+            ],
+            configureServices: services =>
+            {
+                services.RemoveAll<IKeycloakUserRoleClient>();
+                services.AddSingleton<IKeycloakUserRoleClient>(roleClient);
+            });
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/moderation/developer-enrollment-requests/2c54f9bb-1fdf-48e5-8cf0-a8b77f6174af/approve", null);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.Equal(
+            "approved",
+            document.RootElement.GetProperty("developerEnrollmentRequest").GetProperty("status").GetString());
+
+        await using var dbContext = CreateDbContext();
+        var request = await dbContext.DeveloperEnrollmentRequests.SingleAsync(
+            candidate => candidate.Id == Guid.Parse("2c54f9bb-1fdf-48e5-8cf0-a8b77f6174af"));
+
+        Assert.Equal(DeveloperEnrollmentStatuses.Approved, request.Status);
+        Assert.NotNull(request.ReviewedByUserId);
+        Assert.NotNull(request.ReviewedAtUtc);
     }
 
     /// <summary>

@@ -4,7 +4,7 @@ A backend service for third party developers for the Board ecosystem to use to r
 
 Current implementation status:
 
-- implemented now: health endpoints, Keycloak-backed identity/auth foundation, current-user developer enrollment, Wave 1 persistence for `users` and `user_board_profiles`, Wave 2 organizations and memberships, and Waves 3 through 5 title/catalog and acquisition persistence
+- implemented now: health endpoints, Keycloak-backed identity/auth foundation, review-based developer enrollment plus moderator approval, Wave 1 persistence for `users` and `user_board_profiles`, Wave 2 organizations and memberships, and Waves 3 through 5 title/catalog and acquisition persistence
 - planned next: Wave 6 unified commerce and entitlements
 
 ## Table of Contents
@@ -60,7 +60,7 @@ Notes:
 - Override Keycloak settings with `Authentication__Keycloak__*` environment variables if needed.
 - Authentication data ownership is documented in [`backend/docs/auth-data-ownership.md`](docs/auth-data-ownership.md).
 - Current catalog/title schema behavior is documented in [`backend/docs/title-catalog-schema.md`](docs/title-catalog-schema.md).
-- Local developer enrollment uses the backend client's Keycloak service account to grant the `developer` realm role for the authenticated user.
+- Local developer enrollment is request-based. Players submit enrollment requests, moderators approve or reject them, and approval uses the backend client's Keycloak service account to grant the `developer` realm role.
 
 Local Keycloak bootstrap defaults:
 

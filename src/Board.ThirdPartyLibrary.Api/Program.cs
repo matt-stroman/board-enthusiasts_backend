@@ -5,6 +5,7 @@ using Board.ThirdPartyLibrary.Api.Acquisition;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
 using Board.ThirdPartyLibrary.Api.Identity;
+using Board.ThirdPartyLibrary.Api.Moderation;
 using Board.ThirdPartyLibrary.Api.Organizations;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Titles;
@@ -22,7 +23,7 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(endpointOptions =>
     {
-        endpointOptions.Protocols = HttpProtocols.Http1AndHttp2;
+        endpointOptions.Protocols = HttpProtocols.Http2;
     });
 });
 
@@ -60,6 +61,7 @@ builder.Services.AddDbContext<BoardLibraryDbContext>(options =>
         ? boardLibraryConnectionString
         : "Host=invalid;Port=5432;Database=board_tpl_unconfigured;Username=invalid;Password=invalid"));
 builder.Services.AddScoped<IIdentityPersistenceService, IdentityPersistenceService>();
+builder.Services.AddScoped<IDeveloperEnrollmentService, DeveloperEnrollmentService>();
 builder.Services.AddScoped<IAcquisitionService, AcquisitionService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<ITitleService, TitleService>();
@@ -112,6 +114,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapIdentityEndpoints();
+app.MapModerationEndpoints();
 app.MapAcquisitionEndpoints();
 app.MapOrganizationEndpoints();
 app.MapTitleEndpoints();
