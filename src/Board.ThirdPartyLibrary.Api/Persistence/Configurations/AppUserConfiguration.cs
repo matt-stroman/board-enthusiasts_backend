@@ -32,6 +32,18 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
             .HasColumnName("display_name")
             .HasMaxLength(200);
 
+        builder.Property(user => user.UserName)
+            .HasColumnName("user_name")
+            .HasMaxLength(100);
+
+        builder.Property(user => user.FirstName)
+            .HasColumnName("first_name")
+            .HasMaxLength(100);
+
+        builder.Property(user => user.LastName)
+            .HasColumnName("last_name")
+            .HasMaxLength(100);
+
         builder.Property(user => user.Email)
             .HasColumnName("email")
             .HasMaxLength(320);
@@ -43,6 +55,18 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(user => user.IdentityProvider)
             .HasColumnName("identity_provider")
             .HasMaxLength(100);
+
+        builder.Property(user => user.AvatarUrl)
+            .HasColumnName("avatar_url")
+            .HasMaxLength(2048);
+
+        builder.Property(user => user.AvatarImageContentType)
+            .HasColumnName("avatar_image_content_type")
+            .HasMaxLength(100);
+
+        builder.Property(user => user.AvatarImageData)
+            .HasColumnName("avatar_image_data")
+            .HasColumnType("bytea");
 
         builder.Property(user => user.CreatedAtUtc)
             .HasColumnName("created_at")

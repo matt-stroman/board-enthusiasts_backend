@@ -136,6 +136,8 @@ Current behavior:
 - media assets are title-scoped rather than metadata-revision-scoped
 - each media row stores an external `source_url`, optional `alt_text`, optional `mime_type`, and optional width/height pair
 - width and height must either both be absent or both be positive
+- developers can set media with either URL upsert (`PUT /developer/titles/{titleId}/media/{mediaRole}`) or file upload (`POST /developer/titles/{titleId}/media/{mediaRole}/upload`)
+- file upload currently accepts JPEG, PNG, WEBP, and GIF up to 25 MB
 - public catalog browse currently surfaces the card image URL when present
 
 ## Release And Artifact Model

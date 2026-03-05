@@ -199,6 +199,74 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UploadTitleMediaEndpoint_WithUnsupportedFormat_ReturnsValidationError()
+    {
+        await using (var migrationContext = CreateDbContext())
+        {
+            await migrationContext.Database.MigrateAsync();
+        }
+
+        var organizationId = Guid.NewGuid();
+        var titleId = Guid.NewGuid();
+        var metadataId = Guid.NewGuid();
+        var editorUserId = Guid.NewGuid();
+
+        await using (var seedContext = CreateDbContext())
+        {
+            seedContext.Users.Add(new AppUser
+            {
+                Id = editorUserId,
+                KeycloakSubject = "editor-123",
+                DisplayName = "Editor User",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            seedContext.Organizations.Add(new Organization
+            {
+                Id = organizationId,
+                Slug = "stellar-forge",
+                DisplayName = "Stellar Forge",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            {
+                OrganizationId = organizationId,
+                UserId = editorUserId,
+                Role = "editor",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await seedContext.SaveChangesAsync();
+            await SeedTitleWithMetadataAsync(seedContext, organizationId, titleId, metadataId);
+        }
+
+        using var factory = new RealPostgresApiFactory(
+            _postgresContainer.GetConnectionString(),
+            [
+                new Claim("sub", "editor-123"),
+                new Claim("name", "Editor User")
+            ]);
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        using var mediaContent = new ByteArrayContent(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        mediaContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(mediaContent, "media", "hero.pdf");
+
+        using var response = await client.PostAsync($"/developer/titles/{titleId}/media/hero/upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        using (var document = JsonDocument.Parse(payload))
+        {
+            Assert.True(document.RootElement.GetProperty("errors").TryGetProperty("media", out _));
+        }
+
+        await using var verificationContext = CreateDbContext();
+        Assert.False(await verificationContext.TitleMediaAssets.AnyAsync(candidate => candidate.TitleId == titleId));
+    }
+
+    [Fact]
     public async Task Schema_WithDuplicateMediaRole_RejectsSecondRole()
     {
         var organizationId = Guid.NewGuid();
@@ -580,6 +648,13 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
 
     private sealed class RealPostgresApiFactory(string connectionString, IReadOnlyList<Claim> claims) : WebApplicationFactory<Program>
     {
+        protected override void ConfigureClient(HttpClient client)
+        {
+            base.ConfigureClient(client);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrHigher;
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");

@@ -5,6 +5,7 @@
 - Implement new external API behavior contract-first and TDD-first: OpenAPI/Postman coverage first, failing backend tests second, production code last.
 - Keep the maintained backend behavior aligned with the current implemented contract; do not leave future-only endpoints partially represented in docs/tests if persistence and implementation are deferred.
 - Keycloak owns authentication lifecycle behavior and brokered SSO provider linkage. PostgreSQL should only own application data and local projections keyed to Keycloak subjects.
+- Use HTTP/2 as the default for all backend HTTP traffic that we control: outbound `HttpClient` calls from the API, automated tests targeting the API, and local tooling probes. If compatibility requires accepting HTTP/1.1 on Kestrel, keep HTTP/2 as the explicit caller default and document the exception.
 - Every existing and new web API endpoint must have thorough unit test(s) to cover the endpoint's typical and edge cases.
 - If code is found that is not covered, write applicable unit tests to cover it.
 - Work from a branch, commit the completed change set, push it, and open or update a PR.

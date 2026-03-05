@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,7 +24,7 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(endpointOptions =>
     {
-        endpointOptions.Protocols = HttpProtocols.Http2;
+        endpointOptions.Protocols = HttpProtocols.Http1AndHttp2;
     });
 });
 
@@ -65,6 +66,10 @@ builder.Services.AddScoped<IDeveloperEnrollmentService, DeveloperEnrollmentServi
 builder.Services.AddScoped<IAcquisitionService, AcquisitionService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<ITitleService, TitleService>();
+builder.Services
+    .AddOptions<TitleMediaStorageOptions>()
+    .Bind(builder.Configuration.GetSection(TitleMediaStorageOptions.SectionName));
+builder.Services.AddSingleton<ITitleMediaStorage, LocalTitleMediaStorage>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -92,6 +97,9 @@ var app = builder.Build();
 
 await ApplyDatabaseMigrationsAsync(app.Services, hasBoardLibraryConnectionString);
 
+var titleMediaStorage = app.Services.GetRequiredService<ITitleMediaStorage>();
+Directory.CreateDirectory(titleMediaStorage.RootPath);
+
 app.MapGet("/", () => Results.Ok(new
 {
     service = "board-third-party-lib-backend",
@@ -108,6 +116,12 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready"),
     ResponseWriter = WriteHealthResponseAsync
+});
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(titleMediaStorage.RootPath),
+    RequestPath = "/uploads/title-media"
 });
 
 app.UseAuthentication();

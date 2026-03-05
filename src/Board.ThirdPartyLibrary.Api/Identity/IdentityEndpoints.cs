@@ -14,6 +14,16 @@ namespace Board.ThirdPartyLibrary.Api.Identity;
 /// </summary>
 internal static class IdentityEndpoints
 {
+    private static readonly HashSet<string> SupportedAvatarContentTypes =
+    [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    ];
+
+    private const long MaxAvatarBytes = 2L * 1024L * 1024L;
+
     /// <summary>
     /// Maps identity-related endpoints to the application.
     /// </summary>
@@ -143,6 +153,135 @@ internal static class IdentityEndpoints
         {
             await identityPersistenceService.EnsureCurrentUserProjectionAsync(user.Claims, cancellationToken);
             return Results.Ok(BuildCurrentUserResponse(user.Claims));
+        });
+
+        group.MapGet("/me/profile", [Authorize] async (
+            ClaimsPrincipal user,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            var profile = await identityPersistenceService.GetCurrentUserProfileAsync(user.Claims, cancellationToken);
+            return Results.Ok(new UserProfileResponse(MapUserProfile(profile)));
+        });
+
+        group.MapPut("/me/profile", [Authorize] async (
+            ClaimsPrincipal user,
+            UpdateUserProfileRequest request,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            var validationErrors = ValidateUserProfileRequest(request);
+            if (validationErrors.Count > 0)
+            {
+                return Results.ValidationProblem(validationErrors, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var profile = await identityPersistenceService.UpdateCurrentUserProfileAsync(
+                user.Claims,
+                new UpdateUserProfileCommand(
+                    NormalizeOptionalValue(request.DisplayName)),
+                cancellationToken);
+
+            return Results.Ok(new UserProfileResponse(MapUserProfile(profile)));
+        });
+
+        group.MapPut("/me/profile/avatar-url", [Authorize] async (
+            ClaimsPrincipal user,
+            SetAvatarUrlRequest request,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.AvatarUrl))
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
+                    {
+                        ["avatarUrl"] = ["Avatar URL is required."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var avatarUrl = request.AvatarUrl.Trim();
+            if (!Uri.TryCreate(avatarUrl, UriKind.Absolute, out _))
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
+                    {
+                        ["avatarUrl"] = ["Avatar URL must be an absolute URI."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var profile = await identityPersistenceService.SetCurrentUserAvatarUrlAsync(user.Claims, avatarUrl, cancellationToken);
+            return Results.Ok(new UserProfileResponse(MapUserProfile(profile)));
+        });
+
+        group.MapPost("/me/profile/avatar-upload", [Authorize] async (
+            ClaimsPrincipal user,
+            [FromForm] UploadAvatarForm request,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            if (request.Avatar is null)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
+                    {
+                        ["avatar"] = ["Avatar image is required."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            if (request.Avatar.Length <= 0)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
+                    {
+                        ["avatar"] = ["Avatar image cannot be empty."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            if (request.Avatar.Length > MaxAvatarBytes)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
+                    {
+                        ["avatar"] = [$"Avatar image size must be {MaxAvatarBytes / 1024 / 1024} MB or less."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var contentType = request.Avatar.ContentType.Trim().ToLowerInvariant();
+            if (!SupportedAvatarContentTypes.Contains(contentType))
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
+                    {
+                        ["avatar"] = ["Avatar image format must be JPEG, PNG, WEBP, or GIF."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            await using var avatarStream = request.Avatar.OpenReadStream();
+            using var memoryStream = new MemoryStream();
+            await avatarStream.CopyToAsync(memoryStream, cancellationToken);
+
+            var profile = await identityPersistenceService.UploadCurrentUserAvatarAsync(
+                user.Claims,
+                new UploadedAvatarCommand(contentType, memoryStream.ToArray()),
+                cancellationToken);
+
+            return Results.Ok(new UserProfileResponse(MapUserProfile(profile)));
+        }).DisableAntiforgery();
+
+        group.MapDelete("/me/profile/avatar", [Authorize] async (
+            ClaimsPrincipal user,
+            IIdentityPersistenceService identityPersistenceService,
+            CancellationToken cancellationToken) =>
+        {
+            var profile = await identityPersistenceService.RemoveCurrentUserAvatarAsync(user.Claims, cancellationToken);
+            return Results.Ok(new UserProfileResponse(MapUserProfile(profile)));
         });
 
         group.MapGet("/me/developer-enrollment", [Authorize] async (
@@ -371,6 +510,21 @@ internal static class IdentityEndpoints
         return errors;
     }
 
+    private static Dictionary<string, string[]> ValidateUserProfileRequest(UpdateUserProfileRequest request)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        if (!string.IsNullOrWhiteSpace(request.DisplayName) && request.DisplayName.Trim().Length > 200)
+        {
+            errors["displayName"] = ["Display name cannot exceed 200 characters."];
+        }
+
+        return errors;
+    }
+
+    private static string? NormalizeOptionalValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static CurrentUserResponse BuildCurrentUserResponse(IEnumerable<Claim> claims)
     {
         var claimList = claims.ToList();
@@ -438,6 +592,22 @@ internal static class IdentityEndpoints
             snapshot.IsRead,
             snapshot.CreatedAtUtc,
             snapshot.ReadAtUtc);
+
+    private static UserProfileDto MapUserProfile(UserProfileSnapshot snapshot) =>
+        new(
+            snapshot.Subject,
+            snapshot.DisplayName,
+            snapshot.UserName,
+            snapshot.FirstName,
+            snapshot.LastName,
+            snapshot.Email,
+            snapshot.EmailVerified,
+            snapshot.AvatarUrl,
+            snapshot.UploadedAvatar is null
+                ? null
+                : $"data:{snapshot.UploadedAvatar.ContentType};base64,{Convert.ToBase64String(snapshot.UploadedAvatar.Content)}",
+            snapshot.Initials,
+            snapshot.UpdatedAtUtc);
 
     private static IResult CreateProblemResult(int statusCode, string title, string detail, string code) =>
         Results.Json(
@@ -518,6 +688,56 @@ internal sealed record CurrentUserResponse(
     bool EmailVerified,
     string? IdentityProvider,
     IReadOnlyList<string> Roles);
+
+/// <summary>
+/// Application-managed profile details for the current user.
+/// </summary>
+/// <param name="Subject">Stable user subject identifier.</param>
+/// <param name="DisplayName">Application-managed display name.</param>
+/// <param name="UserName">Username sourced from Keycloak claims.</param>
+/// <param name="FirstName">First name sourced from Keycloak claims.</param>
+/// <param name="LastName">Last name sourced from Keycloak claims.</param>
+/// <param name="Email">Cached identity email address.</param>
+/// <param name="EmailVerified">Cached identity email verification flag.</param>
+/// <param name="AvatarUrl">Hosted avatar URL when configured.</param>
+/// <param name="AvatarDataUrl">Inline data URL when the avatar is uploaded directly.</param>
+/// <param name="Initials">Initials used for avatar fallback rendering.</param>
+/// <param name="UpdatedAt">UTC profile update timestamp.</param>
+internal sealed record UserProfileDto(
+    string Subject,
+    string? DisplayName,
+    string? UserName,
+    string? FirstName,
+    string? LastName,
+    string? Email,
+    bool EmailVerified,
+    string? AvatarUrl,
+    string? AvatarDataUrl,
+    string Initials,
+    DateTime UpdatedAt);
+
+/// <summary>
+/// Response wrapper for the current user profile endpoint.
+/// </summary>
+/// <param name="Profile">Current user profile payload.</param>
+internal sealed record UserProfileResponse(UserProfileDto Profile);
+
+/// <summary>
+/// Request payload for updating current user profile fields.
+/// </summary>
+/// <param name="DisplayName">Application-managed display name.</param>
+internal sealed record UpdateUserProfileRequest(string? DisplayName);
+
+/// <summary>
+/// Request payload for setting avatar URL.
+/// </summary>
+/// <param name="AvatarUrl">Absolute avatar URL.</param>
+internal sealed record SetAvatarUrlRequest(string AvatarUrl);
+
+internal sealed class UploadAvatarForm
+{
+    public IFormFile? Avatar { get; set; }
+}
 
 /// <summary>
 /// Developer-enrollment state for the current user.

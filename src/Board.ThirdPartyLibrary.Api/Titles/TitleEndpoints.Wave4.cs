@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Board.ThirdPartyLibrary.Api.Titles;
 
@@ -9,6 +10,14 @@ internal static partial class TitleEndpoints
     private static readonly Regex PackageNameRegex = PackageNamePattern();
     private static readonly Regex ReleaseVersionRegex = ReleaseVersionPattern();
     private static readonly Regex Sha256Regex = Sha256Pattern();
+    private const long MaxTitleMediaUploadBytes = 25L * 1024L * 1024L;
+    private static readonly HashSet<string> SupportedTitleMediaContentTypes = new(StringComparer.Ordinal)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    };
 
     private static void MapWave4TitleEndpoints(RouteGroupBuilder developerTitleGroup)
     {
@@ -28,6 +37,103 @@ internal static partial class TitleEndpoints
                 _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
             };
         });
+
+        developerTitleGroup.MapPost("/{titleId:guid}/media/{mediaRole}/upload", [Authorize] async (
+            ClaimsPrincipal user,
+            HttpContext httpContext,
+            Guid titleId,
+            string mediaRole,
+            [FromForm] UploadTitleMediaAssetForm request,
+            ITitleService titleService,
+            ITitleMediaStorage titleMediaStorage,
+            CancellationToken cancellationToken) =>
+        {
+            var normalizedMediaRole = NormalizeCode(mediaRole);
+            if (normalizedMediaRole is not (TitleMediaRoles.Card or TitleMediaRoles.Hero or TitleMediaRoles.Logo))
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["mediaRole"] = ["Media role must be one of: card, hero, logo."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            if (request.Media is null)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["media"] = ["Media image is required."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            if (request.Media.Length <= 0)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["media"] = ["Media image cannot be empty."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            if (request.Media.Length > MaxTitleMediaUploadBytes)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["media"] = [$"Media image size must be {MaxTitleMediaUploadBytes / 1024 / 1024} MB or less."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(request.Media.ContentType)
+                ? string.Empty
+                : request.Media.ContentType.Trim().ToLowerInvariant();
+            if (!SupportedTitleMediaContentTypes.Contains(contentType))
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["media"] = ["Media image format must be JPEG, PNG, WEBP, or GIF."]
+                    },
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            await using var mediaStream = request.Media.OpenReadStream();
+            using var memoryStream = new MemoryStream();
+            await mediaStream.CopyToAsync(memoryStream, cancellationToken);
+
+            var routePath = await titleMediaStorage.SaveTitleMediaAsync(
+                titleId,
+                normalizedMediaRole,
+                contentType,
+                memoryStream.ToArray(),
+                cancellationToken);
+            var sourceUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}{routePath}";
+
+            var result = await titleService.UpsertMediaAssetAsync(
+                user.Claims,
+                titleId,
+                normalizedMediaRole,
+                new UpsertTitleMediaAssetCommand(
+                    sourceUrl,
+                    string.IsNullOrWhiteSpace(request.AltText) ? null : request.AltText.Trim(),
+                    contentType,
+                    null,
+                    null),
+                cancellationToken);
+
+            return result.Status switch
+            {
+                TitleResourceMutationStatus.Success => Results.Ok(new TitleMediaAssetResponse(MapTitleMediaAsset(result.MediaAsset!))),
+                TitleResourceMutationStatus.NotFound => Results.NotFound(),
+                TitleResourceMutationStatus.Forbidden => Results.Forbid(),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        }).DisableAntiforgery();
 
         developerTitleGroup.MapPut("/{titleId:guid}/media/{mediaRole}", [Authorize] async (
             ClaimsPrincipal user,
@@ -570,6 +676,16 @@ internal sealed record UpsertTitleMediaAssetRequest(
     string? MimeType,
     int? Width,
     int? Height);
+
+/// <summary>
+/// Form payload for uploading a title media asset file.
+/// </summary>
+internal sealed class UploadTitleMediaAssetForm
+{
+    public IFormFile? Media { get; set; }
+
+    public string? AltText { get; set; }
+}
 
 /// <summary>
 /// Request payload for creating a title release.

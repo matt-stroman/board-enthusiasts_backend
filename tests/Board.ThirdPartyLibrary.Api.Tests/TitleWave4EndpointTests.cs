@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -165,6 +166,184 @@ public sealed class TitleWave4EndpointTests
         var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
         var mediaAsset = await verificationDbContext.TitleMediaAssets.SingleAsync(candidate => candidate.TitleId == titleId);
         Assert.Equal("https://cdn.example.com/card.png", mediaAsset.SourceUrl);
+    }
+
+    [Fact]
+    public async Task UploadTitleMediaAssetEndpoint_WithEditorMembership_PersistsAsset()
+    {
+        using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
+
+        Guid titleId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            titleId = await SeedManagedTitleAsync(dbContext, "editor-123");
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        var mediaBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47 };
+        using var mediaContent = new ByteArrayContent(mediaBytes);
+        mediaContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(mediaContent, "media", "hero.png");
+        content.Add(new StringContent("Hero art."), "altText");
+
+        using var response = await client.PostAsync($"/developer/titles/{titleId}/media/hero/upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var mediaAsset = document.RootElement.GetProperty("mediaAsset");
+        Assert.Equal("hero", mediaAsset.GetProperty("mediaRole").GetString());
+        Assert.StartsWith("http://localhost/uploads/title-media/", mediaAsset.GetProperty("sourceUrl").GetString(), StringComparison.Ordinal);
+
+        using var verificationScope = factory.Services.CreateScope();
+        var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var savedAsset = await verificationDbContext.TitleMediaAssets.SingleAsync(candidate => candidate.TitleId == titleId);
+        Assert.StartsWith("http://localhost/uploads/title-media/", savedAsset.SourceUrl, StringComparison.Ordinal);
+        Assert.Equal("image/png", savedAsset.MimeType);
+    }
+
+    [Fact]
+    public async Task UploadTitleMediaAssetEndpoint_WithOversizedFile_ReturnsUnprocessableEntity()
+    {
+        using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
+
+        Guid titleId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            titleId = await SeedManagedTitleAsync(dbContext, "editor-123");
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        var mediaBytes = new byte[(25 * 1024 * 1024) + 1];
+        using var mediaContent = new ByteArrayContent(mediaBytes);
+        mediaContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(mediaContent, "media", "huge.png");
+
+        using var response = await client.PostAsync($"/developer/titles/{titleId}/media/card/upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty("media", out _));
+    }
+
+    [Fact]
+    public async Task UploadTitleMediaAssetEndpoint_WithInvalidRole_ReturnsUnprocessableEntity()
+    {
+        using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
+
+        Guid titleId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            titleId = await SeedManagedTitleAsync(dbContext, "editor-123");
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        using var mediaContent = new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+        mediaContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(mediaContent, "media", "poster.png");
+
+        using var response = await client.PostAsync($"/developer/titles/{titleId}/media/poster/upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty("mediaRole", out _));
+    }
+
+    [Fact]
+    public async Task UploadTitleMediaAssetEndpoint_WithoutMedia_ReturnsUnprocessableEntity()
+    {
+        using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
+
+        Guid titleId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            titleId = await SeedManagedTitleAsync(dbContext, "editor-123");
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent("Hero art."), "altText" }
+        };
+
+        using var response = await client.PostAsync($"/developer/titles/{titleId}/media/hero/upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty("media", out _));
+    }
+
+    [Fact]
+    public async Task UploadTitleMediaAssetEndpoint_WithUnsupportedFormat_ReturnsUnprocessableEntity()
+    {
+        using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
+
+        Guid titleId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            titleId = await SeedManagedTitleAsync(dbContext, "editor-123");
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        using var mediaContent = new ByteArrayContent(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        mediaContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        content.Add(mediaContent, "media", "hero.pdf");
+
+        using var response = await client.PostAsync($"/developer/titles/{titleId}/media/hero/upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty("media", out _));
+
+        using var verificationScope = factory.Services.CreateScope();
+        var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        Assert.False(await verificationDbContext.TitleMediaAssets.AnyAsync(candidate => candidate.TitleId == titleId));
+    }
+
+    [Fact]
+    public async Task UploadTitleMediaAssetEndpoint_WithUnknownTitle_ReturnsNotFound()
+    {
+        using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            dbContext.Users.Add(new AppUser
+            {
+                Id = Guid.NewGuid(),
+                KeycloakSubject = "editor-123",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        using var mediaContent = new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+        mediaContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(mediaContent, "media", "hero.png");
+
+        using var response = await client.PostAsync($"/developer/titles/{Guid.NewGuid()}/media/hero/upload", content);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -595,6 +774,13 @@ public sealed class TitleWave4EndpointTests
         {
             _useTestAuthentication = useTestAuthentication;
             _testClaims = testClaims?.ToList() ?? [];
+        }
+
+        protected override void ConfigureClient(HttpClient client)
+        {
+            base.ConfigureClient(client);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrHigher;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

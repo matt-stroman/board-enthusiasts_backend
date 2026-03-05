@@ -55,6 +55,7 @@ PostgreSQL remains the source of truth for application-owned domain data, includ
 - titles, metadata, media assets, releases, artifacts, supported publishers, integration connections, and acquisition bindings
 - payment, entitlement, and install-delivery data when those areas are implemented
 - optional Board profile linkage/cache owned by this application
+- application-managed profile fields for display purposes (for example display name, first/last name, username, and avatar preferences/content)
 - an application user projection for linking domain records to a Keycloak subject
 - developer enrollment request history, moderation audit fields, conversation threads/messages/attachments, probation timing, and in-app notifications used by the application workflow
 

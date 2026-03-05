@@ -21,6 +21,21 @@ internal sealed class AppUser
     public string? DisplayName { get; set; }
 
     /// <summary>
+    /// Gets or sets the application-managed username shown in profile surfaces.
+    /// </summary>
+    public string? UserName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the application-managed first name.
+    /// </summary>
+    public string? FirstName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the application-managed last name.
+    /// </summary>
+    public string? LastName { get; set; }
+
+    /// <summary>
     /// Gets or sets the cached email address when available.
     /// </summary>
     public string? Email { get; set; }
@@ -34,6 +49,21 @@ internal sealed class AppUser
     /// Gets or sets the cached upstream identity provider name when available.
     /// </summary>
     public string? IdentityProvider { get; set; }
+
+    /// <summary>
+    /// Gets or sets the avatar URL configured for the user when the user prefers a hosted avatar image.
+    /// </summary>
+    public string? AvatarUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the content type for an uploaded avatar image.
+    /// </summary>
+    public string? AvatarImageContentType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the uploaded avatar image content.
+    /// </summary>
+    public byte[]? AvatarImageData { get; set; }
 
     /// <summary>
     /// Gets or sets the UTC creation timestamp.

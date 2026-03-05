@@ -82,6 +82,129 @@ public sealed class IdentityPersistenceIntegrationTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Verifies profile and avatar endpoints persist application-managed profile fields in PostgreSQL.
+    /// </summary>
+    [Fact]
+    public async Task CurrentUserProfileEndpoints_WithRealPostgres_RoundTripPersistedData()
+    {
+        await using (var migrationContext = CreateDbContext())
+        {
+            await migrationContext.Database.MigrateAsync();
+        }
+
+        using var factory = new RealPostgresApiFactory(
+            _postgresContainer.GetConnectionString(),
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim("preferred_username", "local-admin"),
+                new Claim("given_name", "Local"),
+                new Claim("family_name", "Admin"),
+                new Claim("email", "admin@boardtpl.local"),
+                new Claim("email_verified", "true"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var updateResponse = await client.PutAsJsonAsync(
+            "/identity/me/profile",
+            new
+            {
+                displayName = "Board Enthusiast"
+            });
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+
+        var avatarContent = new ByteArrayContent([0x89, 0x50, 0x4E, 0x47]);
+        avatarContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        using var uploadContent = new MultipartFormDataContent
+        {
+            { avatarContent, "Avatar", "avatar.png" }
+        };
+
+        using var uploadResponse = await client.PostAsync("/identity/me/profile/avatar-upload", uploadContent);
+        Assert.Equal(HttpStatusCode.OK, uploadResponse.StatusCode);
+
+        using var getResponse = await client.GetAsync("/identity/me/profile");
+        var payload = await getResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var profile = document.RootElement.GetProperty("profile");
+        Assert.Equal("local-admin", profile.GetProperty("userName").GetString());
+        Assert.Equal("Local", profile.GetProperty("firstName").GetString());
+        Assert.Equal("Admin", profile.GetProperty("lastName").GetString());
+        Assert.StartsWith("data:image/png;base64,", profile.GetProperty("avatarDataUrl").GetString(), StringComparison.Ordinal);
+
+        await using var dbContext = CreateDbContext();
+        var user = await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+        Assert.Equal("Board Enthusiast", user.DisplayName);
+        Assert.Equal("local-admin", user.UserName);
+        Assert.Equal("Local", user.FirstName);
+        Assert.Equal("Admin", user.LastName);
+        Assert.Equal("image/png", user.AvatarImageContentType);
+        Assert.NotNull(user.AvatarImageData);
+    }
+
+    /// <summary>
+    /// Verifies username projections refresh from Keycloak claims when a user changes username.
+    /// </summary>
+    [Fact]
+    public async Task CurrentUserProfileEndpoint_WithChangedPreferredUsername_RefreshesProjection()
+    {
+        await using (var migrationContext = CreateDbContext())
+        {
+            await migrationContext.Database.MigrateAsync();
+        }
+
+        using (var initialFactory = new RealPostgresApiFactory(
+            _postgresContainer.GetConnectionString(),
+            [
+                new Claim("sub", "user-123"),
+                new Claim("preferred_username", "local-admin"),
+                new Claim("given_name", "Local"),
+                new Claim("family_name", "Admin"),
+                new Claim("email", "admin@boardtpl.local"),
+                new Claim("email_verified", "true"),
+                new Claim(ClaimTypes.Role, "player")
+            ]))
+        using (var initialClient = initialFactory.CreateClient())
+        {
+            using var initialResponse = await initialClient.GetAsync("/identity/me/profile");
+            Assert.Equal(HttpStatusCode.OK, initialResponse.StatusCode);
+        }
+
+        using (var updatedFactory = new RealPostgresApiFactory(
+            _postgresContainer.GetConnectionString(),
+            [
+                new Claim("sub", "user-123"),
+                new Claim("preferred_username", "mattstromandev"),
+                new Claim("given_name", "Matt"),
+                new Claim("family_name", "Stroman"),
+                new Claim("email", "admin@boardtpl.local"),
+                new Claim("email_verified", "true"),
+                new Claim(ClaimTypes.Role, "player")
+            ]))
+        using (var updatedClient = updatedFactory.CreateClient())
+        {
+            using var updatedResponse = await updatedClient.GetAsync("/identity/me/profile");
+            var payload = await updatedResponse.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, updatedResponse.StatusCode);
+
+            using var document = JsonDocument.Parse(payload);
+            var profile = document.RootElement.GetProperty("profile");
+            Assert.Equal("mattstromandev", profile.GetProperty("userName").GetString());
+            Assert.Equal("Matt", profile.GetProperty("firstName").GetString());
+            Assert.Equal("Stroman", profile.GetProperty("lastName").GetString());
+        }
+
+        await using var dbContext = CreateDbContext();
+        var user = await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+        Assert.Equal("mattstromandev", user.UserName);
+        Assert.Equal("Matt", user.FirstName);
+        Assert.Equal("Stroman", user.LastName);
+    }
+
+    /// <summary>
     /// Verifies Board profile CRUD endpoints persist, round-trip, and delete data in PostgreSQL.
     /// </summary>
     [Fact]
@@ -539,6 +662,13 @@ public sealed class IdentityPersistenceIntegrationTests : IAsyncLifetime
             _connectionString = connectionString;
             _claims = claims;
             _configureServices = configureServices;
+        }
+
+        protected override void ConfigureClient(HttpClient client)
+        {
+            base.ConfigureClient(client);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrHigher;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

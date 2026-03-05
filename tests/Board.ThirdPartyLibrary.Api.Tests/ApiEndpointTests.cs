@@ -482,6 +482,233 @@ public sealed class ApiEndpointTests
     }
 
     /// <summary>
+    /// Verifies the current-user profile endpoint requires authentication.
+    /// </summary>
+    [Fact]
+    public async Task CurrentUserProfileEndpoint_WithoutBearerToken_ReturnsUnauthorized()
+    {
+        using var factory = new TestApiFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me/profile");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Verifies current-user profile details return seeded fallback initials and claim-derived values.
+    /// </summary>
+    [Fact]
+    public async Task CurrentUserProfileEndpoint_WithAuthenticatedUser_ReturnsProfile()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim("preferred_username", "local-admin"),
+                new Claim("given_name", "Local"),
+                new Claim("family_name", "Admin"),
+                new Claim("email", "admin@boardtpl.local"),
+                new Claim("email_verified", "true"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/identity/me/profile");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var profile = document.RootElement.GetProperty("profile");
+        Assert.Equal("user-123", profile.GetProperty("subject").GetString());
+        Assert.Equal("local-admin", profile.GetProperty("userName").GetString());
+        Assert.Equal("Local", profile.GetProperty("firstName").GetString());
+        Assert.Equal("Admin", profile.GetProperty("lastName").GetString());
+        Assert.Equal("LA", profile.GetProperty("initials").GetString());
+    }
+
+    /// <summary>
+    /// Verifies invalid profile update payloads are rejected.
+    /// </summary>
+    [Fact]
+    public async Task UpdateCurrentUserProfileEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PutAsJsonAsync(
+            "/identity/me/profile",
+            new
+            {
+                displayName = new string('d', 201)
+            });
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal((HttpStatusCode)StatusCodes.Status422UnprocessableEntity, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var errors = document.RootElement.GetProperty("errors");
+        Assert.True(errors.TryGetProperty("displayName", out _));
+    }
+
+    /// <summary>
+    /// Verifies profile updates persist and return normalized values.
+    /// </summary>
+    [Fact]
+    public async Task UpdateCurrentUserProfileEndpoint_WithAuthenticatedUser_PersistsAndReturnsProfile()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim("preferred_username", "local-admin"),
+                new Claim("given_name", "Local"),
+                new Claim("family_name", "Admin"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PutAsJsonAsync(
+            "/identity/me/profile",
+            new
+            {
+                displayName = "Board Enthusiast"
+            });
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var profile = document.RootElement.GetProperty("profile");
+        Assert.Equal("Board Enthusiast", profile.GetProperty("displayName").GetString());
+        Assert.Equal("local-admin", profile.GetProperty("userName").GetString());
+        Assert.Equal("Local", profile.GetProperty("firstName").GetString());
+        Assert.Equal("Admin", profile.GetProperty("lastName").GetString());
+        Assert.Equal("LA", profile.GetProperty("initials").GetString());
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var user = await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == "user-123");
+        Assert.Equal("local-admin", user.UserName);
+        Assert.Equal("Local", user.FirstName);
+        Assert.Equal("Admin", user.LastName);
+    }
+
+    /// <summary>
+    /// Verifies hosted avatar URL updates persist and clear uploaded avatar data.
+    /// </summary>
+    [Fact]
+    public async Task SetAvatarUrlEndpoint_WithAuthenticatedUser_PersistsAvatarUrl()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PutAsJsonAsync(
+            "/identity/me/profile/avatar-url",
+            new
+            {
+                avatarUrl = "https://cdn.example.com/avatar.png"
+            });
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var profile = document.RootElement.GetProperty("profile");
+        Assert.Equal("https://cdn.example.com/avatar.png", profile.GetProperty("avatarUrl").GetString());
+        Assert.False(profile.TryGetProperty("avatarDataUrl", out _));
+    }
+
+    /// <summary>
+    /// Verifies uploaded avatars are persisted and returned as data URLs.
+    /// </summary>
+    [Fact]
+    public async Task UploadAvatarEndpoint_WithValidImage_ReturnsDataUrl()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        var avatarContent = new ByteArrayContent([0x89, 0x50, 0x4E, 0x47]);
+        avatarContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        using var content = new MultipartFormDataContent
+        {
+            { avatarContent, "Avatar", "avatar.png" }
+        };
+
+        using var response = await client.PostAsync("/identity/me/profile/avatar-upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var profile = document.RootElement.GetProperty("profile");
+        var avatarDataUrl = profile.GetProperty("avatarDataUrl").GetString();
+        Assert.NotNull(avatarDataUrl);
+        Assert.StartsWith("data:image/png;base64,", avatarDataUrl, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies avatar removal clears any configured avatar values.
+    /// </summary>
+    [Fact]
+    public async Task RemoveAvatarEndpoint_WithExistingAvatar_ClearsAvatarValues()
+    {
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "user-123"),
+                new Claim("name", "Local Admin"),
+                new Claim(ClaimTypes.Role, "player")
+            ]);
+        using var client = factory.CreateClient();
+
+        using var setUrlResponse = await client.PutAsJsonAsync(
+            "/identity/me/profile/avatar-url",
+            new
+            {
+                avatarUrl = "https://cdn.example.com/avatar.png"
+            });
+        Assert.Equal(HttpStatusCode.OK, setUrlResponse.StatusCode);
+
+        using var deleteResponse = await client.DeleteAsync("/identity/me/profile/avatar");
+        var payload = await deleteResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var profile = document.RootElement.GetProperty("profile");
+        Assert.False(profile.TryGetProperty("avatarUrl", out _));
+        Assert.False(profile.TryGetProperty("avatarDataUrl", out _));
+    }
+
+    /// <summary>
     /// Verifies the developer-enrollment status endpoint requires authentication.
     /// </summary>
     [Fact]
@@ -1997,6 +2224,13 @@ public sealed class ApiEndpointTests
             _testClaims = testClaims?.ToList() ?? [];
             _useInMemoryPersistence = useInMemoryPersistence;
             _inMemoryDatabaseName = $"board-third-party-lib-tests-{Guid.NewGuid():N}";
+        }
+
+        protected override void ConfigureClient(HttpClient client)
+        {
+            base.ConfigureClient(client);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrHigher;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

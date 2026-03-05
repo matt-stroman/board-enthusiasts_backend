@@ -4,6 +4,7 @@
   "displayName": "Board Third Party Library",
   "registrationAllowed": true,
   "loginWithEmailAllowed": true,
+  "editUsernameAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
   "verifyEmail": true,
