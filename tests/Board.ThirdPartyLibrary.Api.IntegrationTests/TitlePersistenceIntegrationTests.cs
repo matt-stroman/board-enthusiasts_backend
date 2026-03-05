@@ -101,8 +101,8 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             {
                 slug = "star-blasters",
                 contentKind = "game",
-                lifecycleStatus = "draft",
-                visibility = "private",
+                lifecycleStatus = "testing",
+                visibility = "listed",
                 metadata = new
                 {
                     displayName = "Star Blasters",
@@ -121,7 +121,10 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
 
         using var createDocument = JsonDocument.Parse(createPayload);
-        var titleId = Guid.Parse(createDocument.RootElement.GetProperty("title").GetProperty("id").GetString()!);
+        var createdTitle = createDocument.RootElement.GetProperty("title");
+        var titleId = Guid.Parse(createdTitle.GetProperty("id").GetString()!);
+        Assert.Equal("draft", createdTitle.GetProperty("lifecycleStatus").GetString());
+        Assert.Equal("private", createdTitle.GetProperty("visibility").GetString());
 
         using var publishResponse = await client.PutAsJsonAsync(
             $"/developer/titles/{titleId}",

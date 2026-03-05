@@ -450,10 +450,10 @@ public sealed class TitleEndpointTests
     }
 
     /// <summary>
-    /// Verifies editors can create titles with required initial metadata.
+    /// Verifies title create always persists draft/private regardless of supplied lifecycle values.
     /// </summary>
     [Fact]
-    public async Task CreateTitleEndpoint_WithEditorMembership_PersistsTitleAndMetadata()
+    public async Task CreateTitleEndpoint_WithEditorMembership_AlwaysCreatesDraftPrivateTitle()
     {
         var organizationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -503,8 +503,8 @@ public sealed class TitleEndpointTests
             {
                 slug = "star-blasters",
                 contentKind = "game",
-                lifecycleStatus = "draft",
-                visibility = "private",
+                lifecycleStatus = "testing",
+                visibility = "listed",
                 metadata = new
                 {
                     displayName = "Star Blasters",
@@ -523,7 +523,10 @@ public sealed class TitleEndpointTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         using var document = JsonDocument.Parse(payload);
+        var responseTitle = document.RootElement.GetProperty("title");
         var titleId = Guid.Parse(document.RootElement.GetProperty("title").GetProperty("id").GetString()!);
+        Assert.Equal("draft", responseTitle.GetProperty("lifecycleStatus").GetString());
+        Assert.Equal("private", responseTitle.GetProperty("visibility").GetString());
 
         using var verificationScope = factory.Services.CreateScope();
         var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
@@ -531,6 +534,8 @@ public sealed class TitleEndpointTests
         var metadata = await verificationDbContext.TitleMetadataVersions.SingleAsync(candidate => candidate.TitleId == titleId);
 
         Assert.Equal("star-blasters", title.Slug);
+        Assert.Equal("draft", title.LifecycleStatus);
+        Assert.Equal("private", title.Visibility);
         Assert.Equal(1, metadata.RevisionNumber);
         Assert.False(metadata.IsFrozen);
     }
@@ -611,7 +616,6 @@ public sealed class TitleEndpointTests
 
         Assert.True(errors.TryGetProperty("slug", out _));
         Assert.True(errors.TryGetProperty("contentKind", out _));
-        Assert.True(errors.TryGetProperty("visibility", out _));
         Assert.True(errors.TryGetProperty("metadata.displayName", out _));
         Assert.True(errors.TryGetProperty("metadata.minPlayers", out _));
     }

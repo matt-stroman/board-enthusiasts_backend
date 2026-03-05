@@ -107,8 +107,8 @@ internal static partial class TitleEndpoints
                 new CreateTitleCommand(
                     NormalizeSlug(request.Slug),
                     NormalizeCode(request.ContentKind)!,
-                    NormalizeCode(request.LifecycleStatus)!,
-                    NormalizeCode(request.Visibility)!,
+                    TitleLifecycleStatuses.Draft,
+                    TitleVisibilities.Private,
                     MapMetadataCommand(request.Metadata)),
                 cancellationToken);
 
@@ -250,7 +250,7 @@ internal static partial class TitleEndpoints
 
     private static Dictionary<string, string[]> ValidateCreateTitleRequest(CreateTitleRequest request)
     {
-        var errors = ValidateTitleRequest(request);
+        var errors = ValidateTitleCoreRequest(request.Slug, request.ContentKind);
         foreach (var pair in ValidateMetadataRequest(request.Metadata))
         {
             errors[pair.Key] = pair.Value;
@@ -299,22 +299,7 @@ internal static partial class TitleEndpoints
 
     private static Dictionary<string, string[]> ValidateTitleRequest(ITitleRequest request)
     {
-        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-
-        if (string.IsNullOrWhiteSpace(request.Slug))
-        {
-            errors["slug"] = ["Slug is required."];
-        }
-        else if (!SlugRegex.IsMatch(NormalizeSlug(request.Slug)))
-        {
-            errors["slug"] = ["Slug must contain only lowercase letters, numbers, and single hyphen separators."];
-        }
-
-        var normalizedContentKind = NormalizeCode(request.ContentKind);
-        if (normalizedContentKind is not (TitleContentKinds.Game or TitleContentKinds.App))
-        {
-            errors["contentKind"] = ["Content kind must be one of: game, app."];
-        }
+        var errors = ValidateTitleCoreRequest(request.Slug, request.ContentKind);
 
         var normalizedLifecycleStatus = NormalizeCode(request.LifecycleStatus);
         if (normalizedLifecycleStatus is not
@@ -329,9 +314,32 @@ internal static partial class TitleEndpoints
         {
             errors["visibility"] = ["Visibility must be one of: private, unlisted, listed."];
         }
-        else if (normalizedLifecycleStatus == TitleLifecycleStatuses.Draft && normalizedVisibility != TitleVisibilities.Private)
+        else if (normalizedLifecycleStatus is (TitleLifecycleStatuses.Draft or TitleLifecycleStatuses.Archived) &&
+            normalizedVisibility != TitleVisibilities.Private)
         {
-            errors["visibility"] = ["Draft titles must use private visibility."];
+            errors["visibility"] = ["Draft and archived titles must use private visibility."];
+        }
+
+        return errors;
+    }
+
+    private static Dictionary<string, string[]> ValidateTitleCoreRequest(string slug, string contentKind)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            errors["slug"] = ["Slug is required."];
+        }
+        else if (!SlugRegex.IsMatch(NormalizeSlug(slug)))
+        {
+            errors["slug"] = ["Slug must contain only lowercase letters, numbers, and single hyphen separators."];
+        }
+
+        var normalizedContentKind = NormalizeCode(contentKind);
+        if (normalizedContentKind is not (TitleContentKinds.Game or TitleContentKinds.App))
+        {
+            errors["contentKind"] = ["Content kind must be one of: game, app."];
         }
 
         return errors;
@@ -578,8 +586,8 @@ internal interface ITitleRequest
 /// </summary>
 /// <param name="Slug">Title route key unique within the organization.</param>
 /// <param name="ContentKind">Content kind such as game or app.</param>
-/// <param name="LifecycleStatus">Lifecycle status for the title.</param>
-/// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="LifecycleStatus">Reserved for forward compatibility; create currently forces draft lifecycle.</param>
+/// <param name="Visibility">Reserved for forward compatibility; create currently forces private visibility.</param>
 /// <param name="Metadata">Initial required metadata snapshot.</param>
 internal sealed record CreateTitleRequest(
     string Slug,
