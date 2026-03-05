@@ -37,11 +37,12 @@ internal sealed class KeycloakUserRoleClient : IKeycloakUserRoleClient
         string roleName,
         CancellationToken cancellationToken = default)
     {
-        var adminToken = await GetAdminAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(adminToken))
+        var adminTokenResult = await GetAdminAccessTokenAsync(cancellationToken);
+        if (!adminTokenResult.Succeeded || string.IsNullOrWhiteSpace(adminTokenResult.AccessToken))
         {
-            return KeycloakUserRoleMutationResult.Failure("Keycloak admin token could not be acquired.");
+            return KeycloakUserRoleMutationResult.Failure(adminTokenResult.ErrorDetail ?? "Keycloak admin token could not be acquired.");
         }
+        var adminToken = adminTokenResult.AccessToken;
 
         var userRoleRead = await GetUserRoleMappingsAsync(userSubject, adminToken, cancellationToken);
         if (!userRoleRead.Succeeded)
@@ -96,11 +97,12 @@ internal sealed class KeycloakUserRoleClient : IKeycloakUserRoleClient
         string roleName,
         CancellationToken cancellationToken = default)
     {
-        var adminToken = await GetAdminAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(adminToken))
+        var adminTokenResult = await GetAdminAccessTokenAsync(cancellationToken);
+        if (!adminTokenResult.Succeeded || string.IsNullOrWhiteSpace(adminTokenResult.AccessToken))
         {
-            return KeycloakUserRoleMutationResult.Failure("Keycloak admin token could not be acquired.");
+            return KeycloakUserRoleMutationResult.Failure(adminTokenResult.ErrorDetail ?? "Keycloak admin token could not be acquired.");
         }
+        var adminToken = adminTokenResult.AccessToken;
 
         var userRoleRead = await GetUserRoleMappingsAsync(userSubject, adminToken, cancellationToken);
         if (!userRoleRead.Succeeded)
@@ -155,11 +157,12 @@ internal sealed class KeycloakUserRoleClient : IKeycloakUserRoleClient
         string roleName,
         CancellationToken cancellationToken = default)
     {
-        var adminToken = await GetAdminAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(adminToken))
+        var adminTokenResult = await GetAdminAccessTokenAsync(cancellationToken);
+        if (!adminTokenResult.Succeeded || string.IsNullOrWhiteSpace(adminTokenResult.AccessToken))
         {
-            return KeycloakUserRoleCheckResult.Failure("Keycloak admin token could not be acquired.");
+            return KeycloakUserRoleCheckResult.Failure(adminTokenResult.ErrorDetail ?? "Keycloak admin token could not be acquired.");
         }
+        var adminToken = adminTokenResult.AccessToken;
 
         var userRoleRead = await GetUserRoleMappingsAsync(userSubject, adminToken, cancellationToken);
         if (!userRoleRead.Succeeded)
@@ -237,7 +240,7 @@ internal sealed class KeycloakUserRoleClient : IKeycloakUserRoleClient
         return RoleResolutionResult.Success(role);
     }
 
-    private async Task<string?> GetAdminAccessTokenAsync(CancellationToken cancellationToken)
+    private async Task<AdminAccessTokenResult> GetAdminAccessTokenAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, _endpointResolver.GetTokenEndpointUri())
         {
@@ -256,21 +259,33 @@ internal sealed class KeycloakUserRoleClient : IKeycloakUserRoleClient
 
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                return AdminAccessTokenResult.Failure(
+                    BuildFailureDetail(
+                        response.StatusCode,
+                        "Keycloak admin token request failed.",
+                        payload));
             }
 
             using var document = JsonDocument.Parse(payload);
-            return document.RootElement.TryGetProperty("access_token", out var accessTokenElement)
-                ? accessTokenElement.GetString()
-                : null;
+            if (!document.RootElement.TryGetProperty("access_token", out var accessTokenElement) ||
+                string.IsNullOrWhiteSpace(accessTokenElement.GetString()))
+            {
+                return AdminAccessTokenResult.Failure("Keycloak admin token response did not include an access token.");
+            }
+
+            return AdminAccessTokenResult.Success(accessTokenElement.GetString()!);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            return null;
+            return AdminAccessTokenResult.Failure($"Keycloak admin token request could not reach the token endpoint. {exception.Message}");
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException exception)
         {
-            return null;
+            return AdminAccessTokenResult.Failure($"Keycloak admin token request timed out or was canceled. {exception.Message}");
+        }
+        catch (JsonException)
+        {
+            return AdminAccessTokenResult.Failure("Keycloak admin token response payload was invalid.");
         }
     }
 
@@ -312,6 +327,15 @@ internal sealed class KeycloakUserRoleClient : IKeycloakUserRoleClient
             new(true, role, null);
 
         public static RoleResolutionResult Failure(string errorDetail) =>
+            new(false, null, errorDetail);
+    }
+
+    private sealed record AdminAccessTokenResult(bool Succeeded, string? AccessToken, string? ErrorDetail)
+    {
+        public static AdminAccessTokenResult Success(string accessToken) =>
+            new(true, accessToken, null);
+
+        public static AdminAccessTokenResult Failure(string errorDetail) =>
             new(false, null, errorDetail);
     }
 }
