@@ -29,9 +29,9 @@ This fits the project’s API-first direction well because the requests and asse
 
 The maintained contract assets for current API behavior live in the `api` submodule:
 
-- OpenAPI spec: [`api/postman/specs/board-third-party-library-api.v1.openapi.yaml`](../../api/postman/specs/board-third-party-library-api.v1.openapi.yaml)
-- Contract test collection: [`api/postman/collections/board-third-party-library-api.contract-tests.postman_collection.json`](../../api/postman/collections/board-third-party-library-api.contract-tests.postman_collection.json)
-- Local environment template: [`api/postman/environments/board-third-party-library_local.postman_environment.json`](../../api/postman/environments/board-third-party-library_local.postman_environment.json)
+- OpenAPI spec: [`api/postman/specs/board-enthusiasts-api.v1.openapi.yaml`](../../api/postman/specs/board-enthusiasts-api.v1.openapi.yaml)
+- Contract test collection: [`api/postman/collections/board-enthusiasts-api.contract-tests.postman_collection.json`](../../api/postman/collections/board-enthusiasts-api.contract-tests.postman_collection.json)
+- Local environment template: [`api/postman/environments/board-enthusiasts_local.postman_environment.json`](../../api/postman/environments/board-enthusiasts_local.postman_environment.json)
 - API workflow guide: [`api/README.md`](../../api/README.md)
 
 The backend-local [`backend/postman/`](../postman/) folder is retained only as legacy health-check experimentation and is not the maintained source of truth for the current contract.

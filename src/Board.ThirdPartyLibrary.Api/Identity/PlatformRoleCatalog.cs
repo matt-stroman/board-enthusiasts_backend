@@ -1,7 +1,7 @@
 namespace Board.ThirdPartyLibrary.Api.Identity;
 
 /// <summary>
-/// Platform roles supported by the Board Third Party Library.
+/// Platform roles supported by the Board Enthusiasts.
 /// </summary>
 internal static class PlatformRoleCatalog
 {

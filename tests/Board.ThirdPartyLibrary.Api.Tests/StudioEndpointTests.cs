@@ -1515,7 +1515,7 @@ public sealed class StudioEndpointTests
         private readonly Action<IConfigurationBuilder>? _configureConfiguration;
         private readonly bool _useTestAuthentication;
         private readonly IReadOnlyList<Claim> _testClaims;
-        private readonly string _inMemoryDatabaseName = $"board-third-party-lib-org-tests-{Guid.NewGuid():N}";
+        private readonly string _inMemoryDatabaseName = $"board-enthusiasts-org-tests-{Guid.NewGuid():N}";
 
         public TestApiFactory(
             Action<IServiceCollection>? configureServices = null,

@@ -247,7 +247,7 @@ Use these maintained implementation artifacts as the authoritative references:
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302010127_Wave4MediaReleasesArtifacts.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302010127_Wave4MediaReleasesArtifacts.cs)
   - [`backend/src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302025621_Wave5SupportedPublishersAcquisition.cs`](../src/Board.ThirdPartyLibrary.Api/Persistence/Migrations/20260302025621_Wave5SupportedPublishersAcquisition.cs)
 - API contract:
-  - [`api/postman/specs/board-third-party-library-api.v1.openapi.yaml`](../../api/postman/specs/board-third-party-library-api.v1.openapi.yaml)
+  - [`api/postman/specs/board-enthusiasts-api.v1.openapi.yaml`](../../api/postman/specs/board-enthusiasts-api.v1.openapi.yaml)
 
 ## Out Of Scope For The Current Wave Boundary
 

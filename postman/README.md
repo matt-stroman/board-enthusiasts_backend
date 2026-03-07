@@ -8,9 +8,9 @@ It is not the maintained source of truth for the current API contract or contrac
 
 Use these maintained assets instead:
 
-- OpenAPI spec: [`api/postman/specs/board-third-party-library-api.v1.openapi.yaml`](../../api/postman/specs/board-third-party-library-api.v1.openapi.yaml)
-- Contract test collection: [`api/postman/collections/board-third-party-library-api.contract-tests.postman_collection.json`](../../api/postman/collections/board-third-party-library-api.contract-tests.postman_collection.json)
-- Local environment template: [`api/postman/environments/board-third-party-library_local.postman_environment.json`](../../api/postman/environments/board-third-party-library_local.postman_environment.json)
+- OpenAPI spec: [`api/postman/specs/board-enthusiasts-api.v1.openapi.yaml`](../../api/postman/specs/board-enthusiasts-api.v1.openapi.yaml)
+- Contract test collection: [`api/postman/collections/board-enthusiasts-api.contract-tests.postman_collection.json`](../../api/postman/collections/board-enthusiasts-api.contract-tests.postman_collection.json)
+- Local environment template: [`api/postman/environments/board-enthusiasts_local.postman_environment.json`](../../api/postman/environments/board-enthusiasts_local.postman_environment.json)
 - Workflow docs: [`backend/docs/postman-api-testing.md`](../docs/postman-api-testing.md) and [`api/README.md`](../../api/README.md)
 
 ## Legacy Contents

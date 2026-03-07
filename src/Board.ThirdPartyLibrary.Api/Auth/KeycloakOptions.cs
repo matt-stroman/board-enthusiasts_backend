@@ -18,17 +18,17 @@ internal sealed class KeycloakOptions
     /// <summary>
     /// Gets or sets the Keycloak realm name.
     /// </summary>
-    public string Realm { get; set; } = "board-third-party-library";
+    public string Realm { get; set; } = "board-enthusiasts";
 
     /// <summary>
     /// Gets or sets the confidential client identifier used by the backend.
     /// </summary>
-    public string ClientId { get; set; } = "board-third-party-library-backend";
+    public string ClientId { get; set; } = "board-enthusiasts-backend";
 
     /// <summary>
     /// Gets or sets the confidential client secret used by the backend.
     /// </summary>
-    public string ClientSecret { get; set; } = "board-third-party-library-backend-secret";
+    public string ClientSecret { get; set; } = "board-enthusiasts-backend-secret";
 
     /// <summary>
     /// Gets or sets the public backend base URL used for redirect URI generation.

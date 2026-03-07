@@ -789,7 +789,7 @@ public sealed class PlayerAndTitleReportEndpointTests
     {
         private readonly bool _useTestAuthentication;
         private readonly IReadOnlyList<Claim> _testClaims;
-        private readonly string _inMemoryDatabaseName = $"board-third-party-lib-player-report-tests-{Guid.NewGuid():N}";
+        private readonly string _inMemoryDatabaseName = $"board-enthusiasts-player-report-tests-{Guid.NewGuid():N}";
 
         public TestApiFactory(bool useTestAuthentication = false, IEnumerable<Claim>? testClaims = null)
         {

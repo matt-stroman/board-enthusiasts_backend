@@ -1,4 +1,4 @@
-# Board Third Party Library Backend
+# Board Enthusiasts Backend
 
 ## Coding Standard
 

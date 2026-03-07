@@ -38,7 +38,7 @@ Included config:
 
 Recommended workflow in VS Code:
 
-1. Open the repo root workspace (`board-third-party-lib`).
+1. Open the repo root workspace (`board-enthusiasts`).
 2. Open **Run and Debug** (`Ctrl+Shift+D`).
 3. Select `Backend API (Debug Build)` or `Backend API (Release Build)`.
 4. Press `F5`.

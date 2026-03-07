@@ -768,7 +768,7 @@ public sealed class TitleWave4EndpointTests
     {
         private readonly bool _useTestAuthentication;
         private readonly IReadOnlyList<Claim> _testClaims;
-        private readonly string _inMemoryDatabaseName = $"board-third-party-lib-wave4-tests-{Guid.NewGuid():N}";
+        private readonly string _inMemoryDatabaseName = $"board-enthusiasts-wave4-tests-{Guid.NewGuid():N}";
 
         public TestApiFactory(bool useTestAuthentication = false, IEnumerable<Claim>? testClaims = null)
         {

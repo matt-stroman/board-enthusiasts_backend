@@ -1993,7 +1993,7 @@ public sealed class TitleEndpointTests
         private readonly Action<IConfigurationBuilder>? _configureConfiguration;
         private readonly bool _useTestAuthentication;
         private readonly IReadOnlyList<Claim> _testClaims;
-        private readonly string _inMemoryDatabaseName = $"board-third-party-lib-title-tests-{Guid.NewGuid():N}";
+        private readonly string _inMemoryDatabaseName = $"board-enthusiasts-title-tests-{Guid.NewGuid():N}";
 
         public TestApiFactory(
             Action<IServiceCollection>? configureServices = null,

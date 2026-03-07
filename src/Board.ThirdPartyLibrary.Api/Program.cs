@@ -113,7 +113,7 @@ Directory.CreateDirectory(titleMediaStorage.RootPath);
 
 app.MapGet("/", () => Results.Ok(new
 {
-    service = "board-third-party-lib-backend",
+    service = "board-enthusiasts-backend",
     endpoints = new[] { "/health/live", "/health/ready" }
 }));
 

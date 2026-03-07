@@ -87,7 +87,7 @@ Important:
 
 Local identity seed data is currently provided by Keycloak realm import, not PostgreSQL seed scripts:
 
-- Keycloak realm import file: [`backend/keycloak/import/board-third-party-library-realm.json`](../keycloak/import/board-third-party-library-realm.json)
+- Keycloak realm import file: [`backend/keycloak/import/board-enthusiasts-realm.json`](../keycloak/import/board-enthusiasts-realm.json)
 - Local login test user: `local-admin` / `ChangeMe!123`
 
 For richer local UI/UX validation data, use the root seed command:

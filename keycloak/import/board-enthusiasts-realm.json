@@ -1,7 +1,7 @@
 {
-  "realm": "board-third-party-library",
+  "realm": "board-enthusiasts",
   "enabled": true,
-  "displayName": "Board Third Party Library",
+  "displayName": "Board Enthusiasts",
   "registrationAllowed": true,
   "loginWithEmailAllowed": true,
   "editUsernameAllowed": true,
@@ -11,7 +11,7 @@
   "rememberMe": true,
   "smtpServer": {
     "from": "no-reply@boardtpl.local",
-    "fromDisplayName": "Board Third Party Library",
+    "fromDisplayName": "Board Enthusiasts",
     "host": "mailpit",
     "port": "1025",
     "auth": "false",
@@ -22,22 +22,22 @@
     "realm": [
       {
         "name": "player",
-        "description": "Player role for Board Third Party Library users."
+        "description": "Player role for Board Enthusiasts users."
       },
       {
         "name": "developer",
-        "description": "Developer role for Board Third Party Library users."
+        "description": "Developer role for Board Enthusiasts users."
       },
       {
         "name": "admin",
-        "description": "Administrator role for Board Third Party Library users."
+        "description": "Administrator role for Board Enthusiasts users."
       },
       {
         "name": "moderator",
-        "description": "Moderator role for Board Third Party Library users."
+        "description": "Moderator role for Board Enthusiasts users."
       },
       {
-        "name": "default-roles-board-third-party-library",
+        "name": "default-roles-board-enthusiasts",
         "description": "${role_default-roles}",
         "composite": true,
         "composites": {
@@ -56,19 +56,19 @@
     ]
   },
   "defaultRole": {
-    "name": "default-roles-board-third-party-library",
+    "name": "default-roles-board-enthusiasts",
     "description": "${role_default-roles}",
     "composite": true
   },
   "clients": [
     {
-      "clientId": "board-third-party-library-backend",
-      "name": "Board Third Party Library Backend",
+      "clientId": "board-enthusiasts-backend",
+      "name": "Board Enthusiasts Backend",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
       "serviceAccountsEnabled": true,
-      "secret": "board-third-party-library-backend-secret",
+      "secret": "board-enthusiasts-backend-secret",
       "redirectUris": [
         "https://localhost:7085/identity/auth/callback"
       ],
@@ -83,12 +83,12 @@
       }
     },
     {
-      "clientId": "board-third-party-library-web",
-      "name": "Board Third Party Library Web UI",
+      "clientId": "board-enthusiasts-web",
+      "name": "Board Enthusiasts Web UI",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "board-third-party-library-web-secret",
+      "secret": "board-enthusiasts-web-secret",
       "redirectUris": [
         "https://localhost:7277/signin-oidc"
       ],
@@ -125,9 +125,9 @@
       ]
     },
     {
-      "username": "service-account-board-third-party-library-backend",
+      "username": "service-account-board-enthusiasts-backend",
       "enabled": true,
-      "serviceAccountClientId": "board-third-party-library-backend",
+      "serviceAccountClientId": "board-enthusiasts-backend",
       "clientRoles": {
         "realm-management": [
           "manage-users",

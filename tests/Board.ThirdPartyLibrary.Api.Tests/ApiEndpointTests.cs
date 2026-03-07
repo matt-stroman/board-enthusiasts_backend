@@ -46,7 +46,7 @@ public sealed class ApiEndpointTests
         using var document = JsonDocument.Parse(payload);
         var root = document.RootElement;
 
-        Assert.Equal("board-third-party-lib-backend", root.GetProperty("service").GetString());
+        Assert.Equal("board-enthusiasts-backend", root.GetProperty("service").GetString());
         Assert.Contains(
             root.GetProperty("endpoints").EnumerateArray().Select(element => element.GetString()),
             endpoint => endpoint == "/health/live");
@@ -219,8 +219,8 @@ public sealed class ApiEndpointTests
                     new Dictionary<string, string?>
                     {
                         ["Authentication:Keycloak:BaseUrl"] = "https://localhost:8443",
-                        ["Authentication:Keycloak:Realm"] = "board-third-party-library",
-                        ["Authentication:Keycloak:ClientId"] = "board-third-party-library-backend",
+                        ["Authentication:Keycloak:Realm"] = "board-enthusiasts",
+                        ["Authentication:Keycloak:ClientId"] = "board-enthusiasts-backend",
                         ["Authentication:Keycloak:PublicBackendBaseUrl"] = "https://localhost:7085",
                         ["Authentication:Keycloak:ExternalIdentityProviders:0"] = "github",
                         ["Authentication:Keycloak:ExternalIdentityProviders:1"] = "google"
@@ -235,8 +235,8 @@ public sealed class ApiEndpointTests
 
         using var document = JsonDocument.Parse(payload);
         var root = document.RootElement;
-        Assert.Equal("https://localhost:8443/realms/board-third-party-library/", root.GetProperty("issuer").GetString());
-        Assert.Equal("board-third-party-library-backend", root.GetProperty("clientId").GetString());
+        Assert.Equal("https://localhost:8443/realms/board-enthusiasts/", root.GetProperty("issuer").GetString());
+        Assert.Equal("board-enthusiasts-backend", root.GetProperty("clientId").GetString());
         Assert.Equal("https://localhost:7085/identity/auth/callback", root.GetProperty("callbackUrl").GetString());
         Assert.Contains(
             root.GetProperty("externalIdentityProviders").EnumerateArray().Select(element => element.GetString()),
@@ -263,8 +263,8 @@ public sealed class ApiEndpointTests
         var location = response.Headers.Location!;
         var query = ParseQuery(location.Query);
 
-        Assert.Equal("https://localhost:8443/realms/board-third-party-library/protocol/openid-connect/auth", location.GetLeftPart(UriPartial.Path));
-        Assert.Equal("board-third-party-library-backend", query["client_id"]);
+        Assert.Equal("https://localhost:8443/realms/board-enthusiasts/protocol/openid-connect/auth", location.GetLeftPart(UriPartial.Path));
+        Assert.Equal("board-enthusiasts-backend", query["client_id"]);
         Assert.Equal("code", query["response_type"]);
         Assert.Equal("S256", query["code_challenge_method"]);
         Assert.Equal("github", query["kc_idp_hint"]);
@@ -1355,8 +1355,8 @@ public sealed class ApiEndpointTests
     private static string CreateAccessToken(params Claim[] claims)
     {
         var jwt = new JwtSecurityToken(
-            issuer: "https://localhost:8443/realms/board-third-party-library",
-            audience: "board-third-party-library-backend",
+            issuer: "https://localhost:8443/realms/board-enthusiasts",
+            audience: "board-enthusiasts-backend",
             claims: claims,
             notBefore: DateTime.UtcNow,
             expires: DateTime.UtcNow.AddMinutes(5));
@@ -1388,7 +1388,7 @@ public sealed class ApiEndpointTests
             _useTestAuthentication = useTestAuthentication;
             _testClaims = testClaims?.ToList() ?? [];
             _useInMemoryPersistence = useInMemoryPersistence;
-            _inMemoryDatabaseName = $"board-third-party-lib-tests-{Guid.NewGuid():N}";
+            _inMemoryDatabaseName = $"board-enthusiasts-tests-{Guid.NewGuid():N}";
         }
 
         protected override void ConfigureClient(HttpClient client)
