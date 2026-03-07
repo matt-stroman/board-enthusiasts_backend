@@ -2,7 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.Identity;
-using Board.ThirdPartyLibrary.Api.Organizations;
+using Board.ThirdPartyLibrary.Api.Studios;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -18,31 +18,31 @@ internal interface IAcquisitionService
 
     Task<IntegrationConnectionListResult> ListIntegrationConnectionsAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CancellationToken cancellationToken = default);
 
     Task<IntegrationConnectionMutationResult> CreateIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         UpsertIntegrationConnectionCommand command,
         CancellationToken cancellationToken = default);
 
     Task<IntegrationConnectionMutationResult> GetIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         Guid connectionId,
         CancellationToken cancellationToken = default);
 
     Task<IntegrationConnectionMutationResult> UpdateIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         Guid connectionId,
         UpsertIntegrationConnectionCommand command,
         CancellationToken cancellationToken = default);
 
     Task<IntegrationConnectionDeleteResult> DeleteIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         Guid connectionId,
         CancellationToken cancellationToken = default);
 
@@ -96,10 +96,10 @@ internal sealed class AcquisitionService(
     /// <inheritdoc />
     public async Task<IntegrationConnectionListResult> ListIntegrationConnectionsAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CancellationToken cancellationToken = default)
     {
-        var access = await LoadManagedOrganizationAsync(claims, organizationId, cancellationToken);
+        var access = await LoadManagedStudioAsync(claims, studioId, cancellationToken);
         if (access.Status is not AcquisitionAccessStatus.Success)
         {
             return access.Status == AcquisitionAccessStatus.Forbidden
@@ -110,7 +110,7 @@ internal sealed class AcquisitionService(
         var connections = await dbContext.IntegrationConnections
             .AsNoTracking()
             .Include(candidate => candidate.SupportedPublisher)
-            .Where(candidate => candidate.OrganizationId == organizationId)
+            .Where(candidate => candidate.StudioId == studioId)
             .OrderBy(candidate => candidate.SupportedPublisherId == null)
             .ThenBy(candidate => candidate.SupportedPublisher != null ? candidate.SupportedPublisher.DisplayName : candidate.CustomPublisherDisplayName)
             .ToListAsync(cancellationToken);
@@ -123,11 +123,11 @@ internal sealed class AcquisitionService(
     /// <inheritdoc />
     public async Task<IntegrationConnectionMutationResult> CreateIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         UpsertIntegrationConnectionCommand command,
         CancellationToken cancellationToken = default)
     {
-        var access = await LoadManagedOrganizationAsync(claims, organizationId, cancellationToken);
+        var access = await LoadManagedStudioAsync(claims, studioId, cancellationToken);
         if (access.Status is not AcquisitionAccessStatus.Success)
         {
             return access.Status == AcquisitionAccessStatus.Forbidden
@@ -145,7 +145,7 @@ internal sealed class AcquisitionService(
         var connection = new IntegrationConnection
         {
             Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
+            StudioId = studioId,
             SupportedPublisherId = supportedPublisher?.Id,
             SupportedPublisher = supportedPublisher,
             CustomPublisherDisplayName = command.CustomPublisherDisplayName,
@@ -157,7 +157,7 @@ internal sealed class AcquisitionService(
         };
 
         dbContext.IntegrationConnections.Add(connection);
-        access.Organization!.UpdatedAtUtc = now;
+        access.Studio!.UpdatedAtUtc = now;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new IntegrationConnectionMutationResult(
@@ -168,11 +168,11 @@ internal sealed class AcquisitionService(
     /// <inheritdoc />
     public async Task<IntegrationConnectionMutationResult> GetIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         Guid connectionId,
         CancellationToken cancellationToken = default)
     {
-        var access = await LoadManagedOrganizationAsync(claims, organizationId, cancellationToken);
+        var access = await LoadManagedStudioAsync(claims, studioId, cancellationToken);
         if (access.Status is not AcquisitionAccessStatus.Success)
         {
             return access.Status == AcquisitionAccessStatus.Forbidden
@@ -184,7 +184,7 @@ internal sealed class AcquisitionService(
             .AsNoTracking()
             .Include(candidate => candidate.SupportedPublisher)
             .SingleOrDefaultAsync(
-                candidate => candidate.OrganizationId == organizationId && candidate.Id == connectionId,
+                candidate => candidate.StudioId == studioId && candidate.Id == connectionId,
                 cancellationToken);
 
         return connection is null
@@ -197,12 +197,12 @@ internal sealed class AcquisitionService(
     /// <inheritdoc />
     public async Task<IntegrationConnectionMutationResult> UpdateIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         Guid connectionId,
         UpsertIntegrationConnectionCommand command,
         CancellationToken cancellationToken = default)
     {
-        var access = await LoadManagedOrganizationAsync(claims, organizationId, cancellationToken);
+        var access = await LoadManagedStudioAsync(claims, studioId, cancellationToken);
         if (access.Status is not AcquisitionAccessStatus.Success)
         {
             return access.Status == AcquisitionAccessStatus.Forbidden
@@ -213,7 +213,7 @@ internal sealed class AcquisitionService(
         var connection = await dbContext.IntegrationConnections
             .Include(candidate => candidate.SupportedPublisher)
             .SingleOrDefaultAsync(
-                candidate => candidate.OrganizationId == organizationId && candidate.Id == connectionId,
+                candidate => candidate.StudioId == studioId && candidate.Id == connectionId,
                 cancellationToken);
 
         if (connection is null)
@@ -235,7 +235,7 @@ internal sealed class AcquisitionService(
         connection.ConfigurationJson = CloneJson(command.Configuration);
         connection.IsEnabled = command.IsEnabled;
         connection.UpdatedAtUtc = now;
-        access.Organization!.UpdatedAtUtc = now;
+        access.Studio!.UpdatedAtUtc = now;
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return new IntegrationConnectionMutationResult(
@@ -246,11 +246,11 @@ internal sealed class AcquisitionService(
     /// <inheritdoc />
     public async Task<IntegrationConnectionDeleteResult> DeleteIntegrationConnectionAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         Guid connectionId,
         CancellationToken cancellationToken = default)
     {
-        var access = await LoadManagedOrganizationAsync(claims, organizationId, cancellationToken);
+        var access = await LoadManagedStudioAsync(claims, studioId, cancellationToken);
         if (access.Status is not AcquisitionAccessStatus.Success)
         {
             return access.Status == AcquisitionAccessStatus.Forbidden
@@ -260,7 +260,7 @@ internal sealed class AcquisitionService(
 
         var connection = await dbContext.IntegrationConnections
             .SingleOrDefaultAsync(
-                candidate => candidate.OrganizationId == organizationId && candidate.Id == connectionId,
+                candidate => candidate.StudioId == studioId && candidate.Id == connectionId,
                 cancellationToken);
 
         if (connection is null)
@@ -280,7 +280,7 @@ internal sealed class AcquisitionService(
         }
 
         dbContext.IntegrationConnections.Remove(connection);
-        access.Organization!.UpdatedAtUtc = DateTime.UtcNow;
+        access.Studio!.UpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         return new IntegrationConnectionDeleteResult(AcquisitionMutationStatus.Success);
     }
@@ -338,7 +338,7 @@ internal sealed class AcquisitionService(
             return new TitleIntegrationBindingMutationResult(AcquisitionMutationStatus.NotFound);
         }
 
-        if (connection.OrganizationId != title.OrganizationId)
+        if (connection.StudioId != title.StudioId)
         {
             return new TitleIntegrationBindingMutationResult(
                 AcquisitionMutationStatus.Conflict,
@@ -465,7 +465,7 @@ internal sealed class AcquisitionService(
             return new TitleIntegrationBindingMutationResult(AcquisitionMutationStatus.NotFound);
         }
 
-        if (connection.OrganizationId != title.OrganizationId)
+        if (connection.StudioId != title.StudioId)
         {
             return new TitleIntegrationBindingMutationResult(
                 AcquisitionMutationStatus.Conflict,
@@ -586,27 +586,27 @@ internal sealed class AcquisitionService(
             : await dbContext.SupportedPublishers
                 .SingleOrDefaultAsync(candidate => candidate.Id == supportedPublisherId && candidate.IsEnabled, cancellationToken);
 
-    private async Task<AcquisitionOrganizationAccessResult> LoadManagedOrganizationAsync(
+    private async Task<AcquisitionStudioAccessResult> LoadManagedStudioAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CancellationToken cancellationToken)
     {
         var actor = await EnsureActorAsync(claims, cancellationToken);
-        var organization = await dbContext.Organizations
-            .SingleOrDefaultAsync(candidate => candidate.Id == organizationId, cancellationToken);
+        var studio = await dbContext.Studios
+            .SingleOrDefaultAsync(candidate => candidate.Id == studioId, cancellationToken);
 
-        if (organization is null)
+        if (studio is null)
         {
-            return new AcquisitionOrganizationAccessResult(AcquisitionAccessStatus.NotFound);
+            return new AcquisitionStudioAccessResult(AcquisitionAccessStatus.NotFound);
         }
 
-        var actorRole = await GetActorOrganizationRoleAsync(organizationId, actor.Id, cancellationToken);
+        var actorRole = await GetActorStudioRoleAsync(studioId, actor.Id, cancellationToken);
         if (!CanManageAcquisition(actorRole))
         {
-            return new AcquisitionOrganizationAccessResult(AcquisitionAccessStatus.Forbidden);
+            return new AcquisitionStudioAccessResult(AcquisitionAccessStatus.Forbidden);
         }
 
-        return new AcquisitionOrganizationAccessResult(AcquisitionAccessStatus.Success, organization);
+        return new AcquisitionStudioAccessResult(AcquisitionAccessStatus.Success, studio);
     }
 
     private async Task<AcquisitionTitleAccessResult> LoadManagedTitleAsync(
@@ -616,7 +616,7 @@ internal sealed class AcquisitionService(
     {
         var actor = await EnsureActorAsync(claims, cancellationToken);
         var title = await dbContext.Titles
-            .Include(candidate => candidate.Organization)
+            .Include(candidate => candidate.Studio)
             .SingleOrDefaultAsync(candidate => candidate.Id == titleId, cancellationToken);
 
         if (title is null)
@@ -624,7 +624,7 @@ internal sealed class AcquisitionService(
             return new AcquisitionTitleAccessResult(AcquisitionAccessStatus.NotFound);
         }
 
-        var actorRole = await GetActorOrganizationRoleAsync(title.OrganizationId, actor.Id, cancellationToken);
+        var actorRole = await GetActorStudioRoleAsync(title.StudioId, actor.Id, cancellationToken);
         if (!CanManageAcquisition(actorRole))
         {
             return new AcquisitionTitleAccessResult(AcquisitionAccessStatus.Forbidden);
@@ -646,16 +646,16 @@ internal sealed class AcquisitionService(
         return await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == subject, cancellationToken);
     }
 
-    private async Task<string?> GetActorOrganizationRoleAsync(Guid organizationId, Guid actorUserId, CancellationToken cancellationToken) =>
-        await dbContext.OrganizationMemberships
-            .Where(candidate => candidate.OrganizationId == organizationId && candidate.UserId == actorUserId)
+    private async Task<string?> GetActorStudioRoleAsync(Guid studioId, Guid actorUserId, CancellationToken cancellationToken) =>
+        await dbContext.StudioMemberships
+            .Where(candidate => candidate.StudioId == studioId && candidate.UserId == actorUserId)
             .Select(candidate => candidate.Role)
             .SingleOrDefaultAsync(cancellationToken);
 
     private static bool CanManageAcquisition(string? role) =>
-        string.Equals(role, OrganizationRoles.Owner, StringComparison.Ordinal) ||
-        string.Equals(role, OrganizationRoles.Admin, StringComparison.Ordinal) ||
-        string.Equals(role, OrganizationRoles.Editor, StringComparison.Ordinal);
+        string.Equals(role, StudioRoles.Owner, StringComparison.Ordinal) ||
+        string.Equals(role, StudioRoles.Admin, StringComparison.Ordinal) ||
+        string.Equals(role, StudioRoles.Editor, StringComparison.Ordinal);
 
     private static string? CloneJson(JsonElement? configuration) =>
         configuration is null || configuration.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
@@ -683,7 +683,7 @@ internal sealed class AcquisitionService(
     private static IntegrationConnectionSnapshot MapIntegrationConnection(IntegrationConnection connection) =>
         new(
             connection.Id,
-            connection.OrganizationId,
+            connection.StudioId,
             connection.SupportedPublisherId,
             connection.SupportedPublisher is null ? null : MapSupportedPublisher(connection.SupportedPublisher),
             connection.CustomPublisherDisplayName,
@@ -709,11 +709,11 @@ internal sealed class AcquisitionService(
 }
 
 /// <summary>
-/// Command payload for creating or updating an organization integration connection.
+/// Command payload for creating or updating a studio integration connection.
 /// </summary>
 /// <param name="SupportedPublisherId">Canonical supported publisher identifier when using a registry entry.</param>
-/// <param name="CustomPublisherDisplayName">Custom publisher display name when using an organization-owned custom connection.</param>
-/// <param name="CustomPublisherHomepageUrl">Custom publisher homepage URL when using an organization-owned custom connection.</param>
+/// <param name="CustomPublisherDisplayName">Custom publisher display name when using a studio-owned custom connection.</param>
+/// <param name="CustomPublisherHomepageUrl">Custom publisher homepage URL when using a studio-owned custom connection.</param>
 /// <param name="Configuration">Optional provider-specific non-secret configuration object.</param>
 /// <param name="IsEnabled">Whether the connection can be selected for enabled bindings.</param>
 internal sealed record UpsertIntegrationConnectionCommand(
@@ -754,10 +754,10 @@ internal sealed record SupportedPublisherSnapshot(
     string HomepageUrl);
 
 /// <summary>
-/// Projection of an organization-owned integration connection.
+/// Projection of a studio-owned integration connection.
 /// </summary>
 /// <param name="Id">Integration connection identifier.</param>
-/// <param name="OrganizationId">Owning organization identifier.</param>
+/// <param name="StudioId">Owning studio identifier.</param>
 /// <param name="SupportedPublisherId">Linked supported publisher identifier when present.</param>
 /// <param name="SupportedPublisher">Canonical supported publisher details when present.</param>
 /// <param name="CustomPublisherDisplayName">Custom publisher display name when using a custom connection.</param>
@@ -768,7 +768,7 @@ internal sealed record SupportedPublisherSnapshot(
 /// <param name="UpdatedAtUtc">UTC update timestamp.</param>
 internal sealed record IntegrationConnectionSnapshot(
     Guid Id,
-    Guid OrganizationId,
+    Guid StudioId,
     Guid? SupportedPublisherId,
     SupportedPublisherSnapshot? SupportedPublisher,
     string? CustomPublisherDisplayName,
@@ -895,13 +895,13 @@ internal enum AcquisitionAccessStatus
 }
 
 /// <summary>
-/// Authorized organization access resolution result.
+/// Authorized studio access resolution result.
 /// </summary>
 /// <param name="Status">Access resolution outcome.</param>
-/// <param name="Organization">Resolved organization when access succeeds.</param>
-internal sealed record AcquisitionOrganizationAccessResult(
+/// <param name="Studio">Resolved studio when access succeeds.</param>
+internal sealed record AcquisitionStudioAccessResult(
     AcquisitionAccessStatus Status,
-    Organization? Organization = null);
+    Studio? Studio = null);
 
 /// <summary>
 /// Authorized title access resolution result.

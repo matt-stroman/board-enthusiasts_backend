@@ -78,7 +78,7 @@ internal static partial class TitleEndpoints
             ITitleService titleService,
             CancellationToken cancellationToken) =>
         {
-            var result = await titleService.ListOrganizationTitlesAsync(user.Claims, studioId, cancellationToken);
+            var result = await titleService.ListStudioTitlesAsync(user.Claims, studioId, cancellationToken);
             return result.Status switch
             {
                 TitleListStatus.Success => Results.Ok(new DeveloperTitleListResponse(result.Titles!.Select(MapTitleSummary).ToArray())),
@@ -115,7 +115,7 @@ internal static partial class TitleEndpoints
             return result.Status switch
             {
                 TitleMutationStatus.Success => Results.Created(
-                    $"/catalog/{result.Title!.OrganizationSlug}/{result.Title.Slug}",
+                    $"/catalog/{result.Title!.StudioSlug}/{result.Title.Slug}",
                     new DeveloperTitleResponse(MapDeveloperTitleDetail(result.Title))),
                 TitleMutationStatus.NotFound => Results.NotFound(),
                 TitleMutationStatus.Forbidden => Results.Forbid(),
@@ -400,8 +400,8 @@ internal static partial class TitleEndpoints
     private static CatalogTitleSummaryDto MapTitleSummary(TitleSnapshot title) =>
         new(
             title.Id,
-            title.OrganizationId,
-            title.OrganizationSlug,
+            title.StudioId,
+            title.StudioSlug,
             title.Slug,
             title.ContentKind,
             title.LifecycleStatus,
@@ -423,8 +423,8 @@ internal static partial class TitleEndpoints
     private static CatalogTitleDto MapTitleDetail(TitleSnapshot title) =>
         new(
             title.Id,
-            title.OrganizationId,
-            title.OrganizationSlug,
+            title.StudioId,
+            title.StudioSlug,
             title.Slug,
             title.ContentKind,
             title.LifecycleStatus,
@@ -461,8 +461,8 @@ internal static partial class TitleEndpoints
     private static DeveloperTitleDto MapDeveloperTitleDetail(TitleSnapshot title) =>
         new(
             title.Id,
-            title.OrganizationId,
-            title.OrganizationSlug,
+            title.StudioId,
+            title.StudioSlug,
             title.Slug,
             title.ContentKind,
             title.LifecycleStatus,

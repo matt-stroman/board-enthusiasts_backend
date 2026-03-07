@@ -28,7 +28,7 @@ public sealed class TitleWave4EndpointTests
     [Fact]
     public async Task GetCatalogTitleEndpoint_WithWave4Data_ReturnsMediaAndCurrentRelease()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         var releaseId = Guid.NewGuid();
@@ -38,9 +38,9 @@ public sealed class TitleWave4EndpointTests
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -49,7 +49,7 @@ public sealed class TitleWave4EndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -651,7 +651,7 @@ public sealed class TitleWave4EndpointTests
 
     private static async Task<(Guid TitleId, Guid MetadataId)> SeedManagedTitleWithMetadataAsync(BoardLibraryDbContext dbContext, string subject)
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -663,17 +663,17 @@ public sealed class TitleWave4EndpointTests
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         });
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "stellar-forge",
             DisplayName = "Stellar Forge",
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         });
-        dbContext.OrganizationMemberships.Add(new OrganizationMembership
+        dbContext.StudioMemberships.Add(new StudioMembership
         {
-            OrganizationId = organizationId,
+            StudioId = studioId,
             UserId = userId,
             Role = "editor",
             CreatedAtUtc = DateTime.UtcNow,
@@ -682,7 +682,7 @@ public sealed class TitleWave4EndpointTests
         dbContext.Titles.Add(new Title
         {
             Id = titleId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = "star-blasters",
             ContentKind = "game",
             LifecycleStatus = "draft",

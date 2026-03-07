@@ -31,7 +31,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task ListCatalogTitlesEndpoint_ReturnsOnlyPubliclyListedTitles()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var listedTitleId = Guid.NewGuid();
         var privateTitleId = Guid.NewGuid();
 
@@ -40,9 +40,9 @@ public sealed class TitleEndpointTests
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            var organization = new Organization
+            var studio = new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -52,7 +52,7 @@ public sealed class TitleEndpointTests
             var listedTitle = new Title
             {
                 Id = listedTitleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -83,7 +83,7 @@ public sealed class TitleEndpointTests
             var privateTitle = new Title
             {
                 Id = privateTitleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "secret-prototype",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -111,7 +111,7 @@ public sealed class TitleEndpointTests
             };
             privateTitle.CurrentMetadataVersionId = privateMetadata.Id;
 
-            dbContext.Organizations.Add(organization);
+            dbContext.Studios.Add(studio);
             dbContext.Titles.AddRange(listedTitle, privateTitle);
             dbContext.TitleMetadataVersions.AddRange(listedMetadata, privateMetadata);
             await dbContext.SaveChangesAsync();
@@ -138,7 +138,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task GetCatalogTitleEndpoint_WithUnlistedTestingTitle_ReturnsDetail()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
 
@@ -147,9 +147,9 @@ public sealed class TitleEndpointTests
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -159,7 +159,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -210,7 +210,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task GetCatalogTitleEndpoint_WithPrivateTitle_ReturnsNotFound()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
 
@@ -219,9 +219,9 @@ public sealed class TitleEndpointTests
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -230,7 +230,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "secret-prototype",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -267,13 +267,13 @@ public sealed class TitleEndpointTests
     }
 
     /// <summary>
-    /// Verifies catalog listing honors organization and content kind filters.
+    /// Verifies catalog listing honors studio and content kind filters.
     /// </summary>
     [Fact]
     public async Task ListCatalogTitlesEndpoint_WithFilters_ReturnsMatchingTitlesOnly()
     {
-        var firstOrganizationId = Guid.NewGuid();
-        var secondOrganizationId = Guid.NewGuid();
+        var firstStudioId = Guid.NewGuid();
+        var secondStudioId = Guid.NewGuid();
         var gameTitleId = Guid.NewGuid();
         var appTitleId = Guid.NewGuid();
 
@@ -282,18 +282,18 @@ public sealed class TitleEndpointTests
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.AddRange(
-                new Organization
+            dbContext.Studios.AddRange(
+                new Studio
                 {
-                    Id = firstOrganizationId,
+                    Id = firstStudioId,
                     Slug = "stellar-forge",
                     DisplayName = "Stellar Forge",
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 },
-                new Organization
+                new Studio
                 {
-                    Id = secondOrganizationId,
+                    Id = secondStudioId,
                     Slug = "tabletop-sparks",
                     DisplayName = "Tabletop Sparks",
                     CreatedAtUtc = DateTime.UtcNow,
@@ -306,7 +306,7 @@ public sealed class TitleEndpointTests
                 new Title
                 {
                     Id = gameTitleId,
-                    OrganizationId = firstOrganizationId,
+                    StudioId = firstStudioId,
                     Slug = "star-blasters",
                     ContentKind = "game",
                     LifecycleStatus = "published",
@@ -318,7 +318,7 @@ public sealed class TitleEndpointTests
                 new Title
                 {
                     Id = appTitleId,
-                    OrganizationId = secondOrganizationId,
+                    StudioId = secondStudioId,
                     Slug = "map-maker",
                     ContentKind = "app",
                     LifecycleStatus = "published",
@@ -386,25 +386,25 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task ListCatalogTitlesEndpoint_WithGenreFilterAndPaging_ReturnsRequestedSlice()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
 
         using var factory = new TestApiFactory();
 
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
 
-            await SeedPublicCatalogTitleAsync(dbContext, organizationId, "alpha-blasters", "Alpha Blasters", "Arcade Shooter");
-            await SeedPublicCatalogTitleAsync(dbContext, organizationId, "star-blasters", "Star Blasters", "Arcade Shooter");
-            await SeedPublicCatalogTitleAsync(dbContext, organizationId, "puzzle-grove", "Puzzle Grove", "Puzzle");
+            await SeedPublicCatalogTitleAsync(dbContext, studioId, "alpha-blasters", "Alpha Blasters", "Arcade Shooter");
+            await SeedPublicCatalogTitleAsync(dbContext, studioId, "star-blasters", "Star Blasters", "Arcade Shooter");
+            await SeedPublicCatalogTitleAsync(dbContext, studioId, "puzzle-grove", "Puzzle Grove", "Puzzle");
         }
 
         using var client = factory.CreateClient();
@@ -455,7 +455,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task CreateTitleEndpoint_WithEditorMembership_AlwaysCreatesDraftPrivateTitle()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -477,17 +477,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -498,7 +498,7 @@ public sealed class TitleEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -546,7 +546,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task CreateTitleEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -566,17 +566,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -587,7 +587,7 @@ public sealed class TitleEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "Invalid Slug",
@@ -626,7 +626,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task CreateTitleEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -646,9 +646,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -659,7 +659,7 @@ public sealed class TitleEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -684,10 +684,10 @@ public sealed class TitleEndpointTests
     }
 
     /// <summary>
-    /// Verifies title creation returns not found for missing organizations.
+    /// Verifies title creation returns not found for missing studios.
     /// </summary>
     [Fact]
-    public async Task CreateTitleEndpoint_WhenOrganizationIsMissing_ReturnsNotFound()
+    public async Task CreateTitleEndpoint_WhenStudioIsMissing_ReturnsNotFound()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -737,12 +737,12 @@ public sealed class TitleEndpointTests
 
 
     /// <summary>
-    /// Verifies organization title listing is restricted to managing members.
+    /// Verifies studio title listing is restricted to managing members.
     /// </summary>
     [Fact]
-    public async Task ListOrganizationTitlesEndpoint_WithoutManagingMembership_ReturnsForbidden()
+    public async Task ListStudioTitlesEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -762,9 +762,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -774,16 +774,16 @@ public sealed class TitleEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.GetAsync($"/developer/studios/{organizationId}/titles");
+        using var response = await client.GetAsync($"/developer/studios/{studioId}/titles");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     /// <summary>
-    /// Verifies organization title listing returns not found for missing organizations.
+    /// Verifies studio title listing returns not found for missing studios.
     /// </summary>
     [Fact]
-    public async Task ListOrganizationTitlesEndpoint_WhenOrganizationIsMissing_ReturnsNotFound()
+    public async Task ListStudioTitlesEndpoint_WhenStudioIsMissing_ReturnsNotFound()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -817,7 +817,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task UpdateCurrentMetadataEndpoint_ForDraftTitle_UpdatesExistingRevision()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -839,17 +839,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -858,7 +858,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -922,7 +922,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task UpdateCurrentMetadataEndpoint_ForTestingTitle_CreatesNewRevision()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -944,17 +944,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -963,7 +963,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -1066,7 +1066,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task GetTitleEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -1088,9 +1088,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1099,7 +1099,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -1173,7 +1173,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task UpdateTitleEndpoint_WhenLeavingDraft_FreezesCurrentMetadataRevision()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -1195,17 +1195,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1214,7 +1214,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -1314,7 +1314,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task UpdateTitleEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -1336,9 +1336,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1347,7 +1347,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -1437,7 +1437,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task UpdateCurrentMetadataEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -1459,9 +1459,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1470,7 +1470,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -1570,7 +1570,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task ListMetadataVersionsEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -1592,9 +1592,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1603,7 +1603,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -1677,7 +1677,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task ActivateMetadataVersionEndpoint_WithExistingRevision_SwitchesCurrentRevision()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var revisionOneId = Guid.NewGuid();
@@ -1700,17 +1700,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1719,7 +1719,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -1786,7 +1786,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task ActivateMetadataVersionEndpoint_WithoutManagingMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var revisionId = Guid.NewGuid();
@@ -1808,9 +1808,9 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1819,7 +1819,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -1863,7 +1863,7 @@ public sealed class TitleEndpointTests
     [Fact]
     public async Task ActivateMetadataVersionEndpoint_WhenRevisionIsMissing_ReturnsNotFound()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var revisionId = Guid.NewGuid();
@@ -1885,17 +1885,17 @@ public sealed class TitleEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1904,7 +1904,7 @@ public sealed class TitleEndpointTests
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -1944,7 +1944,7 @@ public sealed class TitleEndpointTests
 
     private static async Task SeedPublicCatalogTitleAsync(
         BoardLibraryDbContext dbContext,
-        Guid organizationId,
+        Guid studioId,
         string slug,
         string displayName,
         string genreDisplay)
@@ -1956,7 +1956,7 @@ public sealed class TitleEndpointTests
         dbContext.Titles.Add(new Title
         {
             Id = titleId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = slug,
             ContentKind = "game",
             LifecycleStatus = "testing",

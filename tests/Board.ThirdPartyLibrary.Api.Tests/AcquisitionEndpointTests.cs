@@ -141,11 +141,11 @@ public sealed class AcquisitionEndpointTests
     {
         using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
 
-        Guid organizationId;
+        Guid studioId;
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            organizationId = await SeedManagedOrganizationAsync(dbContext, "editor-123");
+            studioId = await SeedManagedStudioAsync(dbContext, "editor-123");
             dbContext.SupportedPublishers.Add(new SupportedPublisher
             {
                 Id = SupportedPublisherConfiguration.ItchIoId,
@@ -161,7 +161,7 @@ public sealed class AcquisitionEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/integration-connections",
+            $"/developer/studios/{studioId}/integration-connections",
             new
             {
                 supportedPublisherId = SupportedPublisherConfiguration.ItchIoId,
@@ -176,7 +176,7 @@ public sealed class AcquisitionEndpointTests
 
         using var verificationScope = factory.Services.CreateScope();
         var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-        var connection = await verificationDbContext.IntegrationConnections.SingleAsync(candidate => candidate.OrganizationId == organizationId);
+        var connection = await verificationDbContext.IntegrationConnections.SingleAsync(candidate => candidate.StudioId == studioId);
         Assert.Equal(SupportedPublisherConfiguration.ItchIoId, connection.SupportedPublisherId);
         Assert.Equal("{\"widgetTheme\":\"dark\"}", connection.ConfigurationJson);
     }
@@ -221,11 +221,11 @@ public sealed class AcquisitionEndpointTests
     {
         using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
 
-        Guid organizationId;
+        Guid studioId;
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            organizationId = await SeedManagedOrganizationAsync(dbContext, "editor-123");
+            studioId = await SeedManagedStudioAsync(dbContext, "editor-123");
             dbContext.SupportedPublishers.Add(new SupportedPublisher
             {
                 Id = SupportedPublisherConfiguration.ItchIoId,
@@ -241,7 +241,7 @@ public sealed class AcquisitionEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/integration-connections",
+            $"/developer/studios/{studioId}/integration-connections",
             new
             {
                 supportedPublisherId = SupportedPublisherConfiguration.ItchIoId,
@@ -262,16 +262,16 @@ public sealed class AcquisitionEndpointTests
     {
         using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
 
-        Guid organizationId;
+        Guid studioId;
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            organizationId = await SeedManagedOrganizationAsync(dbContext, "editor-123");
+            studioId = await SeedManagedStudioAsync(dbContext, "editor-123");
         }
 
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/integration-connections",
+            $"/developer/studios/{studioId}/integration-connections",
             new
             {
                 supportedPublisherId = Guid.NewGuid(),
@@ -286,16 +286,16 @@ public sealed class AcquisitionEndpointTests
     {
         using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
 
-        Guid organizationId;
+        Guid studioId;
         Guid connectionId;
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            (_, organizationId, connectionId, _) = await SeedManagedTitleWithBindingAsync(dbContext, "editor-123");
+            (_, studioId, connectionId, _) = await SeedManagedTitleWithBindingAsync(dbContext, "editor-123");
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.DeleteAsync($"/developer/studios/{organizationId}/integration-connections/{connectionId}");
+        using var response = await client.DeleteAsync($"/developer/studios/{studioId}/integration-connections/{connectionId}");
         var payload = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -305,7 +305,7 @@ public sealed class AcquisitionEndpointTests
     }
 
     [Fact]
-    public async Task CreateTitleIntegrationBindingEndpoint_WithCrossOrganizationConnection_ReturnsConflict()
+    public async Task CreateTitleIntegrationBindingEndpoint_WithCrossStudioConnection_ReturnsConflict()
     {
         using var factory = new TestApiFactory(useTestAuthentication: true, testClaims: [new Claim("sub", "editor-123")]);
 
@@ -315,7 +315,7 @@ public sealed class AcquisitionEndpointTests
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
             titleId = await SeedManagedTitleWithMetadataAsync(dbContext, "editor-123");
-            foreignConnectionId = await SeedForeignOrganizationConnectionAsync(dbContext);
+            foreignConnectionId = await SeedForeignStudioConnectionAsync(dbContext);
         }
 
         using var client = factory.CreateClient();
@@ -353,7 +353,7 @@ public sealed class AcquisitionEndpointTests
             dbContext.IntegrationConnections.Add(new IntegrationConnection
             {
                 Id = disabledConnectionId,
-                OrganizationId = title.OrganizationId,
+                StudioId = title.StudioId,
                 CustomPublisherDisplayName = "Disabled Store",
                 CustomPublisherHomepageUrl = "https://disabled.example/",
                 IsEnabled = false,
@@ -440,15 +440,15 @@ public sealed class AcquisitionEndpointTests
 
     private static async Task SeedPublicTitleWithAcquisitionAsync(BoardLibraryDbContext dbContext, bool disableConnection = false)
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
         var bindingId = Guid.NewGuid();
 
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "stellar-forge",
             DisplayName = "Stellar Forge",
             CreatedAtUtc = DateTime.UtcNow,
@@ -467,7 +467,7 @@ public sealed class AcquisitionEndpointTests
         dbContext.Titles.Add(new Title
         {
             Id = titleId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = "star-blasters",
             ContentKind = "game",
             LifecycleStatus = "testing",
@@ -497,7 +497,7 @@ public sealed class AcquisitionEndpointTests
         dbContext.IntegrationConnections.Add(new IntegrationConnection
         {
             Id = connectionId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             SupportedPublisherId = SupportedPublisherConfiguration.ItchIoId,
             IsEnabled = !disableConnection,
             CreatedAtUtc = DateTime.UtcNow,
@@ -518,9 +518,9 @@ public sealed class AcquisitionEndpointTests
         await dbContext.SaveChangesAsync();
     }
 
-    private static async Task<Guid> SeedManagedOrganizationAsync(BoardLibraryDbContext dbContext, string subject)
+    private static async Task<Guid> SeedManagedStudioAsync(BoardLibraryDbContext dbContext, string subject)
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         dbContext.Users.Add(new AppUser
         {
@@ -529,35 +529,35 @@ public sealed class AcquisitionEndpointTests
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         });
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "stellar-forge",
             DisplayName = "Stellar Forge",
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         });
-        dbContext.OrganizationMemberships.Add(new OrganizationMembership
+        dbContext.StudioMemberships.Add(new StudioMembership
         {
-            OrganizationId = organizationId,
+            StudioId = studioId,
             UserId = userId,
             Role = "editor",
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         });
         await dbContext.SaveChangesAsync();
-        return organizationId;
+        return studioId;
     }
 
     private static async Task<Guid> SeedManagedTitleWithMetadataAsync(BoardLibraryDbContext dbContext, string subject)
     {
-        var organizationId = await SeedManagedOrganizationAsync(dbContext, subject);
+        var studioId = await SeedManagedStudioAsync(dbContext, subject);
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         dbContext.Titles.Add(new Title
         {
             Id = titleId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = "star-blasters",
             ContentKind = "game",
             LifecycleStatus = "draft",
@@ -588,7 +588,7 @@ public sealed class AcquisitionEndpointTests
         return titleId;
     }
 
-    private static async Task<(Guid TitleId, Guid OrganizationId, Guid ConnectionId, Guid PrimaryBindingId)> SeedManagedTitleWithBindingAsync(
+    private static async Task<(Guid TitleId, Guid StudioId, Guid ConnectionId, Guid PrimaryBindingId)> SeedManagedTitleWithBindingAsync(
         BoardLibraryDbContext dbContext,
         string subject,
         bool includeSecondaryEnabledBinding = false)
@@ -613,7 +613,7 @@ public sealed class AcquisitionEndpointTests
             new IntegrationConnection
             {
                 Id = connectionId,
-                OrganizationId = title.OrganizationId,
+                StudioId = title.StudioId,
                 SupportedPublisherId = SupportedPublisherConfiguration.ItchIoId,
                 IsEnabled = true,
                 CreatedAtUtc = DateTime.UtcNow,
@@ -622,7 +622,7 @@ public sealed class AcquisitionEndpointTests
             new IntegrationConnection
             {
                 Id = secondaryConnectionId,
-                OrganizationId = title.OrganizationId,
+                StudioId = title.StudioId,
                 CustomPublisherDisplayName = "Stellar Forge Direct",
                 CustomPublisherHomepageUrl = "https://store.stellar-forge.example/",
                 IsEnabled = true,
@@ -659,16 +659,16 @@ public sealed class AcquisitionEndpointTests
         }
 
         await dbContext.SaveChangesAsync();
-        return (titleId, title.OrganizationId, connectionId, primaryBindingId);
+        return (titleId, title.StudioId, connectionId, primaryBindingId);
     }
 
-    private static async Task<Guid> SeedForeignOrganizationConnectionAsync(BoardLibraryDbContext dbContext)
+    private static async Task<Guid> SeedForeignStudioConnectionAsync(BoardLibraryDbContext dbContext)
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "foreign-org",
             DisplayName = "Foreign Org",
             CreatedAtUtc = DateTime.UtcNow,
@@ -677,7 +677,7 @@ public sealed class AcquisitionEndpointTests
         dbContext.IntegrationConnections.Add(new IntegrationConnection
         {
             Id = connectionId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             CustomPublisherDisplayName = "Foreign Store",
             CustomPublisherHomepageUrl = "https://foreign.example/",
             IsEnabled = true,

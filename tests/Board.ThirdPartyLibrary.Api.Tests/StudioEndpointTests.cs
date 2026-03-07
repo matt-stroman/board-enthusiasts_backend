@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -22,24 +23,24 @@ using Microsoft.Extensions.Options;
 namespace Board.ThirdPartyLibrary.Api.Tests;
 
 /// <summary>
-/// Endpoint tests for the Wave 2 organization API surface.
+/// Endpoint tests for the Wave 2 studio API surface.
 /// </summary>
 [Trait("Category", "Unit")]
-public sealed class OrganizationEndpointTests
+public sealed class StudioEndpointTests
 {
     /// <summary>
-    /// Verifies public organization listing returns persisted organizations.
+    /// Verifies public studio listing returns persisted studios.
     /// </summary>
     [Fact]
-    public async Task ListOrganizationsEndpoint_ReturnsPublicOrganizations()
+    public async Task ListStudiosEndpoint_ReturnsPublicStudios()
     {
         using var factory = new TestApiFactory();
 
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.AddRange(
-                new Organization
+            dbContext.Studios.AddRange(
+                new Studio
                 {
                     Id = Guid.NewGuid(),
                     Slug = "stellar-forge",
@@ -49,7 +50,7 @@ public sealed class OrganizationEndpointTests
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 },
-                new Organization
+                new Studio
                 {
                     Id = Guid.NewGuid(),
                     Slug = "tabletop-sparks",
@@ -69,21 +70,21 @@ public sealed class OrganizationEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var document = JsonDocument.Parse(payload);
-        var organizations = document.RootElement.GetProperty("studios").EnumerateArray().ToList();
+        var studios = document.RootElement.GetProperty("studios").EnumerateArray().ToList();
 
-        Assert.Equal(2, organizations.Count);
-        Assert.Contains(organizations, organization => organization.GetProperty("slug").GetString() == "stellar-forge");
-        Assert.Contains(organizations, organization => organization.GetProperty("slug").GetString() == "tabletop-sparks");
+        Assert.Equal(2, studios.Count);
+        Assert.Contains(studios, studio => studio.GetProperty("slug").GetString() == "stellar-forge");
+        Assert.Contains(studios, studio => studio.GetProperty("slug").GetString() == "tabletop-sparks");
     }
 
     /// <summary>
-    /// Verifies authenticated developers can list only organizations they manage.
+    /// Verifies authenticated developers can list only studios they manage.
     /// </summary>
     [Fact]
-    public async Task ListManagedOrganizationsEndpoint_ReturnsCallerOrganizations()
+    public async Task ListManagedStudiosEndpoint_ReturnsCallerStudios()
     {
-        var managedOrganizationId = Guid.NewGuid();
-        var unmanagedOrganizationId = Guid.NewGuid();
+        var managedStudioId = Guid.NewGuid();
+        var unmanagedStudioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -105,26 +106,26 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.AddRange(
-                new Organization
+            dbContext.Studios.AddRange(
+                new Studio
                 {
-                    Id = managedOrganizationId,
+                    Id = managedStudioId,
                     Slug = "stellar-forge",
                     DisplayName = "Stellar Forge",
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 },
-                new Organization
+                new Studio
                 {
-                    Id = unmanagedOrganizationId,
+                    Id = unmanagedStudioId,
                     Slug = "tabletop-sparks",
                     DisplayName = "Tabletop Sparks",
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = managedOrganizationId,
+                StudioId = managedStudioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -140,33 +141,43 @@ public sealed class OrganizationEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var document = JsonDocument.Parse(payload);
-        var organizations = document.RootElement.GetProperty("studios").EnumerateArray().ToList();
+        var studios = document.RootElement.GetProperty("studios").EnumerateArray().ToList();
 
-        Assert.Single(organizations);
-        Assert.Equal(managedOrganizationId.ToString(), organizations[0].GetProperty("id").GetString());
-        Assert.Equal("editor", organizations[0].GetProperty("role").GetString());
+        Assert.Single(studios);
+        Assert.Equal(managedStudioId.ToString(), studios[0].GetProperty("id").GetString());
+        Assert.Equal("editor", studios[0].GetProperty("role").GetString());
     }
 
     /// <summary>
-    /// Verifies public organization details are resolved by slug.
+    /// Verifies public studio details are resolved by slug.
     /// </summary>
     [Fact]
-    public async Task GetOrganizationBySlugEndpoint_WhenOrganizationExists_ReturnsPublicDetails()
+    public async Task GetStudioBySlugEndpoint_WhenStudioExists_ReturnsPublicDetails()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
 
         using var factory = new TestApiFactory();
 
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 Description = "Family co-op studio.",
                 LogoUrl = "https://cdn.example.com/orgs/stellar-forge.png",
+                BannerUrl = "https://cdn.example.com/orgs/stellar-forge-banner.png",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.StudioLinks.Add(new StudioLink
+            {
+                Id = Guid.NewGuid(),
+                StudioId = studioId,
+                Label = "Discord",
+                Url = "https://discord.gg/stellarforge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
@@ -180,18 +191,20 @@ public sealed class OrganizationEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var document = JsonDocument.Parse(payload);
-        var organization = document.RootElement.GetProperty("studio");
+        var studio = document.RootElement.GetProperty("studio");
 
-        Assert.Equal(organizationId.ToString(), organization.GetProperty("id").GetString());
-        Assert.Equal("Stellar Forge", organization.GetProperty("displayName").GetString());
-        Assert.Equal("stellar-forge", organization.GetProperty("slug").GetString());
+        Assert.Equal(studioId.ToString(), studio.GetProperty("id").GetString());
+        Assert.Equal("Stellar Forge", studio.GetProperty("displayName").GetString());
+        Assert.Equal("stellar-forge", studio.GetProperty("slug").GetString());
+        Assert.Equal("https://cdn.example.com/orgs/stellar-forge-banner.png", studio.GetProperty("bannerUrl").GetString());
+        Assert.Single(studio.GetProperty("links").EnumerateArray());
     }
 
     /// <summary>
-    /// Verifies missing public organization details return not found.
+    /// Verifies missing public studio details return not found.
     /// </summary>
     [Fact]
-    public async Task GetOrganizationBySlugEndpoint_WhenOrganizationIsMissing_ReturnsNotFound()
+    public async Task GetStudioBySlugEndpoint_WhenStudioIsMissing_ReturnsNotFound()
     {
         using var factory = new TestApiFactory();
         using var client = factory.CreateClient();
@@ -202,10 +215,10 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies creating an organization requires authentication.
+    /// Verifies creating a studio requires authentication.
     /// </summary>
     [Fact]
-    public async Task CreateOrganizationEndpoint_WithoutBearerToken_ReturnsUnauthorized()
+    public async Task CreateStudioEndpoint_WithoutBearerToken_ReturnsUnauthorized()
     {
         using var factory = new TestApiFactory();
         using var client = factory.CreateClient();
@@ -222,10 +235,10 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies only developer-capable platform roles can create organizations.
+    /// Verifies only developer-capable platform roles can create studios.
     /// </summary>
     [Fact]
-    public async Task CreateOrganizationEndpoint_WithoutDeveloperRole_ReturnsForbidden()
+    public async Task CreateStudioEndpoint_WithoutDeveloperRole_ReturnsForbidden()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -249,10 +262,10 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies organization creation succeeds when Keycloak already shows developer role before token refresh.
+    /// Verifies studio creation succeeds when Keycloak already shows developer role before token refresh.
     /// </summary>
     [Fact]
-    public async Task CreateOrganizationEndpoint_WithKeycloakDeveloperRole_AllowsCreate()
+    public async Task CreateStudioEndpoint_WithKeycloakDeveloperRole_AllowsCreate()
     {
         var roleClient = new StubKeycloakUserRoleClient(
             KeycloakUserRoleCheckResult.Success(isAssigned: true));
@@ -286,10 +299,10 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies a developer can create an organization and becomes the initial owner.
+    /// Verifies a developer can create a studio and becomes the initial owner.
     /// </summary>
     [Fact]
-    public async Task CreateOrganizationEndpoint_WithDeveloperRole_PersistsOrganizationAndOwnerMembership()
+    public async Task CreateStudioEndpoint_WithDeveloperRole_PersistsStudioAndOwnerMembership()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -309,34 +322,39 @@ public sealed class OrganizationEndpointTests
                 slug = "stellar-forge",
                 displayName = "Stellar Forge",
                 description = "Family co-op studio.",
-                logoUrl = "https://cdn.example.com/orgs/stellar-forge.png"
+                logoUrl = "https://cdn.example.com/orgs/stellar-forge.png",
+                bannerUrl = "https://cdn.example.com/orgs/stellar-forge-banner.png"
             });
         var payload = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         using var document = JsonDocument.Parse(payload);
-        var organization = document.RootElement.GetProperty("studio");
-        var organizationId = Guid.Parse(organization.GetProperty("id").GetString()!);
+        var studio = document.RootElement.GetProperty("studio");
+        var studioId = Guid.Parse(studio.GetProperty("id").GetString()!);
 
-        Assert.Equal("stellar-forge", organization.GetProperty("slug").GetString());
-        Assert.Equal("Stellar Forge", organization.GetProperty("displayName").GetString());
+        Assert.Equal("stellar-forge", studio.GetProperty("slug").GetString());
+        Assert.Equal("Stellar Forge", studio.GetProperty("displayName").GetString());
+        Assert.Equal("https://cdn.example.com/orgs/stellar-forge-banner.png", studio.GetProperty("bannerUrl").GetString());
+        Assert.Empty(studio.GetProperty("links").EnumerateArray());
 
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-        var persistedMembership = await dbContext.OrganizationMemberships
+        var persistedMembership = await dbContext.StudioMemberships
             .Include(candidate => candidate.User)
-            .SingleAsync(candidate => candidate.OrganizationId == organizationId);
+            .SingleAsync(candidate => candidate.StudioId == studioId);
+        var persistedStudio = await dbContext.Studios.SingleAsync(candidate => candidate.Id == studioId);
 
         Assert.Equal("owner", persistedMembership.Role);
         Assert.Equal("user-123", persistedMembership.User.KeycloakSubject);
+        Assert.Equal("https://cdn.example.com/orgs/stellar-forge-banner.png", persistedStudio.BannerUrl);
     }
 
     /// <summary>
-    /// Verifies invalid organization payloads are rejected.
+    /// Verifies invalid studio payloads are rejected.
     /// </summary>
     [Fact]
-    public async Task CreateOrganizationEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
+    public async Task CreateStudioEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -368,12 +386,12 @@ public sealed class OrganizationEndpointTests
 
 
     /// <summary>
-    /// Verifies organization owners can update organization details.
+    /// Verifies studio owners can update studio details.
     /// </summary>
     [Fact]
-    public async Task UpdateOrganizationEndpoint_WithOwnerMembership_UpdatesOrganization()
+    public async Task UpdateStudioEndpoint_WithOwnerMembership_UpdatesStudio()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -396,18 +414,18 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 Description = "Original description.",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "owner",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -418,31 +436,246 @@ public sealed class OrganizationEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PutAsJsonAsync(
-            $"/developer/studios/{organizationId}",
+            $"/developer/studios/{studioId}",
             new
             {
                 slug = "stellar-forge-studio",
                 displayName = "Stellar Forge Studio",
                 description = "Updated description.",
-                logoUrl = "https://cdn.example.com/orgs/stellar-forge-studio.png"
+                logoUrl = "https://cdn.example.com/orgs/stellar-forge-studio.png",
+                bannerUrl = "https://cdn.example.com/orgs/stellar-forge-studio-banner.png"
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var verificationScope = factory.Services.CreateScope();
         var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-        var organization = await verificationDbContext.Organizations.SingleAsync(candidate => candidate.Id == organizationId);
+        var studio = await verificationDbContext.Studios.SingleAsync(candidate => candidate.Id == studioId);
 
-        Assert.Equal("stellar-forge-studio", organization.Slug);
-        Assert.Equal("Stellar Forge Studio", organization.DisplayName);
-        Assert.Equal("Updated description.", organization.Description);
+        Assert.Equal("stellar-forge-studio", studio.Slug);
+        Assert.Equal("Stellar Forge Studio", studio.DisplayName);
+        Assert.Equal("Updated description.", studio.Description);
+        Assert.Equal("https://cdn.example.com/orgs/stellar-forge-studio-banner.png", studio.BannerUrl);
     }
 
     /// <summary>
-    /// Verifies organization updates reject invalid payloads.
+    /// Verifies studio owners can create and list public studio links.
     /// </summary>
     [Fact]
-    public async Task UpdateOrganizationEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
+    public async Task StudioLinksEndpoints_WithOwnerMembership_CreateAndListLinks()
+    {
+        var studioId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "owner-123"),
+                new Claim(ClaimTypes.Role, "developer")
+            ]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            dbContext.Users.Add(new AppUser
+            {
+                Id = userId,
+                KeycloakSubject = "owner-123",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.Studios.Add(new Studio
+            {
+                Id = studioId,
+                Slug = "stellar-forge",
+                DisplayName = "Stellar Forge",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.StudioMemberships.Add(new StudioMembership
+            {
+                StudioId = studioId,
+                UserId = userId,
+                Role = "owner",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var createResponse = await client.PostAsJsonAsync(
+            $"/developer/studios/{studioId}/links",
+            new
+            {
+                label = "Discord",
+                url = "https://discord.gg/stellarforge"
+            });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var listResponse = await client.GetAsync($"/developer/studios/{studioId}/links");
+        var payload = await listResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        var links = document.RootElement.GetProperty("links").EnumerateArray().ToList();
+        Assert.Single(links);
+        Assert.Equal("Discord", links[0].GetProperty("label").GetString());
+
+        using var verificationScope = factory.Services.CreateScope();
+        var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        Assert.True(await verificationDbContext.StudioLinks.AnyAsync(candidate => candidate.StudioId == studioId && candidate.Label == "Discord"));
+    }
+
+    /// <summary>
+    /// Verifies studio owners can update and delete public studio links.
+    /// </summary>
+    [Fact]
+    public async Task StudioLinksEndpoints_WithOwnerMembership_UpdateAndDeleteLinks()
+    {
+        var studioId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var linkId = Guid.NewGuid();
+
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "owner-123"),
+                new Claim(ClaimTypes.Role, "developer")
+            ]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            dbContext.Users.Add(new AppUser
+            {
+                Id = userId,
+                KeycloakSubject = "owner-123",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.Studios.Add(new Studio
+            {
+                Id = studioId,
+                Slug = "stellar-forge",
+                DisplayName = "Stellar Forge",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.StudioMemberships.Add(new StudioMembership
+            {
+                StudioId = studioId,
+                UserId = userId,
+                Role = "owner",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.StudioLinks.Add(new StudioLink
+            {
+                Id = linkId,
+                StudioId = studioId,
+                Label = "Discord",
+                Url = "https://discord.gg/stellarforge",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var updateResponse = await client.PutAsJsonAsync(
+            $"/developer/studios/{studioId}/links/{linkId}",
+            new
+            {
+                label = "Community Discord",
+                url = "https://discord.gg/stellarforgehq"
+            });
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+
+        using var deleteResponse = await client.DeleteAsync($"/developer/studios/{studioId}/links/{linkId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        using var verificationScope = factory.Services.CreateScope();
+        var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        Assert.False(await verificationDbContext.StudioLinks.AnyAsync(candidate => candidate.Id == linkId));
+    }
+
+    /// <summary>
+    /// Verifies studio owners can upload logo media.
+    /// </summary>
+    [Fact]
+    public async Task UploadStudioLogoEndpoint_WithOwnerMembership_PersistsMedia()
+    {
+        var studioId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        using var factory = new TestApiFactory(
+            useTestAuthentication: true,
+            testClaims:
+            [
+                new Claim("sub", "owner-123"),
+                new Claim(ClaimTypes.Role, "developer")
+            ]);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+            dbContext.Users.Add(new AppUser
+            {
+                Id = userId,
+                KeycloakSubject = "owner-123",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.Studios.Add(new Studio
+            {
+                Id = studioId,
+                Slug = "stellar-forge",
+                DisplayName = "Stellar Forge",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            dbContext.StudioMemberships.Add(new StudioMembership
+            {
+                StudioId = studioId,
+                UserId = userId,
+                Role = "owner",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        using var mediaContent = new ByteArrayContent([0x89, 0x50, 0x4E, 0x47]);
+        mediaContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(mediaContent, "media", "logo.png");
+
+        using var response = await client.PostAsync($"/developer/studios/{studioId}/logo-upload", content);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(payload);
+        Assert.StartsWith("http://localhost/uploads/studio-media/", document.RootElement.GetProperty("studio").GetProperty("logoUrl").GetString(), StringComparison.Ordinal);
+
+        using var verificationScope = factory.Services.CreateScope();
+        var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
+        var studio = await verificationDbContext.Studios.SingleAsync(candidate => candidate.Id == studioId);
+        Assert.StartsWith("http://localhost/uploads/studio-media/", studio.LogoUrl, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies studio updates reject invalid payloads.
+    /// </summary>
+    [Fact]
+    public async Task UpdateStudioEndpoint_WithInvalidPayload_ReturnsUnprocessableEntity()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -473,12 +706,12 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies only owners or admins can update organization details.
+    /// Verifies only owners or admins can update studio details.
     /// </summary>
     [Fact]
-    public async Task UpdateOrganizationEndpoint_WithoutManagementMembership_ReturnsForbidden()
+    public async Task UpdateStudioEndpoint_WithoutManagementMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -499,17 +732,17 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = userId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -520,7 +753,7 @@ public sealed class OrganizationEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PutAsJsonAsync(
-            $"/developer/studios/{organizationId}",
+            $"/developer/studios/{studioId}",
             new
             {
                 slug = "stellar-forge-updated",
@@ -531,10 +764,10 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies organization updates return not found for missing organizations.
+    /// Verifies studio updates return not found for missing studios.
     /// </summary>
     [Fact]
-    public async Task UpdateOrganizationEndpoint_WhenOrganizationIsMissing_ReturnsNotFound()
+    public async Task UpdateStudioEndpoint_WhenStudioIsMissing_ReturnsNotFound()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -571,12 +804,12 @@ public sealed class OrganizationEndpointTests
 
 
     /// <summary>
-    /// Verifies only organization owners or admins can view membership listings.
+    /// Verifies only studio owners or admins can view membership listings.
     /// </summary>
     [Fact]
     public async Task ListMembershipsEndpoint_WithoutManagementMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -596,9 +829,9 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -608,18 +841,18 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.GetAsync($"/developer/studios/{organizationId}/memberships");
+        using var response = await client.GetAsync($"/developer/studios/{studioId}/memberships");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     /// <summary>
-    /// Verifies owners can list organization memberships.
+    /// Verifies owners can list studio memberships.
     /// </summary>
     [Fact]
     public async Task ListMembershipsEndpoint_WithOwnerMembership_ReturnsMembers()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
 
@@ -654,26 +887,26 @@ public sealed class OrganizationEndpointTests
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.AddRange(
-                new OrganizationMembership
+            dbContext.StudioMemberships.AddRange(
+                new StudioMembership
                 {
-                    OrganizationId = organizationId,
+                    StudioId = studioId,
                     UserId = ownerUserId,
                     Role = "owner",
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 },
-                new OrganizationMembership
+                new StudioMembership
                 {
-                    OrganizationId = organizationId,
+                    StudioId = studioId,
                     UserId = editorUserId,
                     Role = "editor",
                     CreatedAtUtc = DateTime.UtcNow,
@@ -683,7 +916,7 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.GetAsync($"/developer/studios/{organizationId}/memberships");
+        using var response = await client.GetAsync($"/developer/studios/{studioId}/memberships");
         var payload = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -696,10 +929,10 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies membership listing returns not found for missing organizations.
+    /// Verifies membership listing returns not found for missing studios.
     /// </summary>
     [Fact]
-    public async Task ListMembershipsEndpoint_WhenOrganizationIsMissing_ReturnsNotFound()
+    public async Task ListMembershipsEndpoint_WhenStudioIsMissing_ReturnsNotFound()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,
@@ -734,7 +967,7 @@ public sealed class OrganizationEndpointTests
     [Fact]
     public async Task UpsertMembershipEndpoint_WithOwnerMembership_PersistsMembership()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
         var targetUserId = Guid.NewGuid();
 
@@ -765,17 +998,17 @@ public sealed class OrganizationEndpointTests
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = ownerUserId,
                 Role = "owner",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -786,7 +1019,7 @@ public sealed class OrganizationEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PutAsJsonAsync(
-            $"/developer/studios/{organizationId}/memberships/editor-456",
+            $"/developer/studios/{studioId}/memberships/editor-456",
             new
             {
                 role = "editor"
@@ -796,9 +1029,9 @@ public sealed class OrganizationEndpointTests
 
         using var verificationScope = factory.Services.CreateScope();
         var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
-        var membership = await verificationDbContext.OrganizationMemberships
+        var membership = await verificationDbContext.StudioMemberships
             .Include(candidate => candidate.User)
-            .SingleAsync(candidate => candidate.OrganizationId == organizationId && candidate.User.KeycloakSubject == "editor-456");
+            .SingleAsync(candidate => candidate.StudioId == studioId && candidate.User.KeycloakSubject == "editor-456");
 
         Assert.Equal("editor", membership.Role);
     }
@@ -838,7 +1071,7 @@ public sealed class OrganizationEndpointTests
     [Fact]
     public async Task UpsertMembershipEndpoint_WhenTargetUserIsMissing_ReturnsNotFoundProblem()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -859,17 +1092,17 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = ownerUserId,
                 Role = "owner",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -880,7 +1113,7 @@ public sealed class OrganizationEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PutAsJsonAsync(
-            $"/developer/studios/{organizationId}/memberships/missing-user",
+            $"/developer/studios/{studioId}/memberships/missing-user",
             new
             {
                 role = "editor"
@@ -899,7 +1132,7 @@ public sealed class OrganizationEndpointTests
     [Fact]
     public async Task UpsertMembershipEndpoint_WithoutManagementMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
         var targetUserId = Guid.NewGuid();
 
@@ -929,17 +1162,17 @@ public sealed class OrganizationEndpointTests
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -950,7 +1183,7 @@ public sealed class OrganizationEndpointTests
 
         using var client = factory.CreateClient();
         using var response = await client.PutAsJsonAsync(
-            $"/developer/studios/{organizationId}/memberships/owner-456",
+            $"/developer/studios/{studioId}/memberships/owner-456",
             new
             {
                 role = "admin"
@@ -960,12 +1193,12 @@ public sealed class OrganizationEndpointTests
     }
 
     /// <summary>
-    /// Verifies the last owner cannot be removed from an organization.
+    /// Verifies the last owner cannot be removed from a studio.
     /// </summary>
     [Fact]
     public async Task DeleteMembershipEndpoint_WhenTargetIsLastOwner_ReturnsConflict()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -986,17 +1219,17 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = ownerUserId,
                 Role = "owner",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1006,7 +1239,7 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.DeleteAsync($"/developer/studios/{organizationId}/memberships/owner-123");
+        using var response = await client.DeleteAsync($"/developer/studios/{studioId}/memberships/owner-123");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -1017,7 +1250,7 @@ public sealed class OrganizationEndpointTests
     [Fact]
     public async Task DeleteMembershipEndpoint_WhenMembershipIsMissing_ReturnsNotFound()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -1038,17 +1271,17 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = ownerUserId,
                 Role = "owner",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1058,7 +1291,7 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.DeleteAsync($"/developer/studios/{organizationId}/memberships/missing-user");
+        using var response = await client.DeleteAsync($"/developer/studios/{studioId}/memberships/missing-user");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -1069,7 +1302,7 @@ public sealed class OrganizationEndpointTests
     [Fact]
     public async Task DeleteMembershipEndpoint_WithoutManagementMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
 
@@ -1099,26 +1332,26 @@ public sealed class OrganizationEndpointTests
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.AddRange(
-                new OrganizationMembership
+            dbContext.StudioMemberships.AddRange(
+                new StudioMembership
                 {
-                    OrganizationId = organizationId,
+                    StudioId = studioId,
                     UserId = editorUserId,
                     Role = "editor",
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
                 },
-                new OrganizationMembership
+                new StudioMembership
                 {
-                    OrganizationId = organizationId,
+                    StudioId = studioId,
                     UserId = ownerUserId,
                     Role = "owner",
                     CreatedAtUtc = DateTime.UtcNow,
@@ -1128,18 +1361,18 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.DeleteAsync($"/developer/studios/{organizationId}/memberships/owner-456");
+        using var response = await client.DeleteAsync($"/developer/studios/{studioId}/memberships/owner-456");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     /// <summary>
-    /// Verifies owners can hard delete organizations.
+    /// Verifies owners can hard delete studios.
     /// </summary>
     [Fact]
-    public async Task DeleteOrganizationEndpoint_WithOwnerMembership_RemovesOrganization()
+    public async Task DeleteStudioEndpoint_WithOwnerMembership_RemovesStudio()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -1160,17 +1393,17 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = ownerUserId,
                 Role = "owner",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1180,24 +1413,24 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.DeleteAsync($"/developer/studios/{organizationId}");
+        using var response = await client.DeleteAsync($"/developer/studios/{studioId}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         using var verificationScope = factory.Services.CreateScope();
         var verificationDbContext = verificationScope.ServiceProvider.GetRequiredService<BoardLibraryDbContext>();
 
-        Assert.False(await verificationDbContext.Organizations.AnyAsync(candidate => candidate.Id == organizationId));
-        Assert.False(await verificationDbContext.OrganizationMemberships.AnyAsync(candidate => candidate.OrganizationId == organizationId));
+        Assert.False(await verificationDbContext.Studios.AnyAsync(candidate => candidate.Id == studioId));
+        Assert.False(await verificationDbContext.StudioMemberships.AnyAsync(candidate => candidate.StudioId == studioId));
     }
 
     /// <summary>
-    /// Verifies only owners can delete organizations.
+    /// Verifies only owners can delete studios.
     /// </summary>
     [Fact]
-    public async Task DeleteOrganizationEndpoint_WithoutOwnerMembership_ReturnsForbidden()
+    public async Task DeleteStudioEndpoint_WithoutOwnerMembership_ReturnsForbidden()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var adminUserId = Guid.NewGuid();
 
         using var factory = new TestApiFactory(
@@ -1218,17 +1451,17 @@ public sealed class OrganizationEndpointTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            dbContext.OrganizationMemberships.Add(new OrganizationMembership
+            dbContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = adminUserId,
                 Role = "admin",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -1238,16 +1471,16 @@ public sealed class OrganizationEndpointTests
         }
 
         using var client = factory.CreateClient();
-        using var response = await client.DeleteAsync($"/developer/studios/{organizationId}");
+        using var response = await client.DeleteAsync($"/developer/studios/{studioId}");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     /// <summary>
-    /// Verifies delete requests return not found for missing organizations.
+    /// Verifies delete requests return not found for missing studios.
     /// </summary>
     [Fact]
-    public async Task DeleteOrganizationEndpoint_WhenOrganizationIsMissing_ReturnsNotFound()
+    public async Task DeleteStudioEndpoint_WhenStudioIsMissing_ReturnsNotFound()
     {
         using var factory = new TestApiFactory(
             useTestAuthentication: true,

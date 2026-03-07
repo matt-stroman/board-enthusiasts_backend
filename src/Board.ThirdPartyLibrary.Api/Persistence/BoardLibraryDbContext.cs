@@ -21,14 +21,19 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
     public DbSet<UserBoardProfile> UserBoardProfiles => Set<UserBoardProfile>();
 
     /// <summary>
-    /// Gets developer organizations.
+    /// Gets developer studios.
     /// </summary>
-    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Studio> Studios => Set<Studio>();
 
     /// <summary>
-    /// Gets organization membership records for scoped developer roles.
+    /// Gets studio membership records for scoped developer roles.
     /// </summary>
-    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+    public DbSet<StudioMembership> StudioMemberships => Set<StudioMembership>();
+
+    /// <summary>
+    /// Gets public links associated with studio profiles.
+    /// </summary>
+    public DbSet<StudioLink> StudioLinks => Set<StudioLink>();
 
     /// <summary>
     /// Gets stable catalog title records.
@@ -46,7 +51,7 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
     public DbSet<SupportedPublisher> SupportedPublishers => Set<SupportedPublisher>();
 
     /// <summary>
-    /// Gets organization-owned external publisher/store connections.
+    /// Gets studio-owned external publisher/store connections.
     /// </summary>
     public DbSet<IntegrationConnection> IntegrationConnections => Set<IntegrationConnection>();
 

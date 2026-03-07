@@ -55,7 +55,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
 
         await using (var seedContext = CreateDbContext())
@@ -68,17 +68,17 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -96,7 +96,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
         using var client = factory.CreateClient();
 
         using var createResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -198,29 +198,29 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies title slug uniqueness is scoped to the owning organization.
+    /// Verifies title slug uniqueness is scoped to the owning studio.
     /// </summary>
     [Fact]
-    public async Task Schema_WithScopedTitleSlugs_AllowsReuseAcrossOrganizationsButRejectsDuplicatesWithinOrganization()
+    public async Task Schema_WithScopedTitleSlugs_AllowsReuseAcrossStudiosButRejectsDuplicatesWithinStudio()
     {
-        var firstOrganizationId = Guid.NewGuid();
-        var secondOrganizationId = Guid.NewGuid();
+        var firstStudioId = Guid.NewGuid();
+        var secondStudioId = Guid.NewGuid();
 
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
 
-        dbContext.Organizations.AddRange(
-            new Organization
+        dbContext.Studios.AddRange(
+            new Studio
             {
-                Id = firstOrganizationId,
+                Id = firstStudioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             },
-            new Organization
+            new Studio
             {
-                Id = secondOrganizationId,
+                Id = secondStudioId,
                 Slug = "tabletop-sparks",
                 DisplayName = "Tabletop Sparks",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -231,7 +231,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             new Title
             {
                 Id = Guid.NewGuid(),
-                OrganizationId = firstOrganizationId,
+                StudioId = firstStudioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -242,7 +242,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             new Title
             {
                 Id = Guid.NewGuid(),
-                OrganizationId = secondOrganizationId,
+                StudioId = secondStudioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -256,7 +256,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
         dbContext.Titles.Add(new Title
         {
             Id = Guid.NewGuid(),
-            OrganizationId = firstOrganizationId,
+            StudioId = firstStudioId,
             Slug = "star-blasters",
             ContentKind = "game",
             LifecycleStatus = "draft",
@@ -274,16 +274,16 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithDuplicateMetadataRevisionNumber_RejectsSecondRevision()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
 
         await using (var dbContext = CreateDbContext())
         {
             await dbContext.Database.MigrateAsync();
 
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -292,7 +292,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             dbContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -352,7 +352,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithCrossTitleCurrentMetadataPointer_RejectsInvalidReference()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var firstTitleId = Guid.NewGuid();
         var secondTitleId = Guid.NewGuid();
         var foreignMetadataId = Guid.NewGuid();
@@ -360,9 +360,9 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
 
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "stellar-forge",
             DisplayName = "Stellar Forge",
             CreatedAtUtc = DateTime.UtcNow,
@@ -372,7 +372,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             new Title
             {
                 Id = firstTitleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -383,7 +383,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             new Title
             {
                 Id = secondTitleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "puzzle-grove",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -429,7 +429,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
 
         await using (var seedContext = CreateDbContext())
@@ -442,17 +442,17 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -470,7 +470,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
         using var client = factory.CreateClient();
 
         using var firstResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -493,7 +493,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
 
         using var secondResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -532,7 +532,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
         var firstTitleId = Guid.NewGuid();
         var secondTitleId = Guid.NewGuid();
@@ -549,17 +549,17 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -569,7 +569,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
                 new Title
                 {
                     Id = firstTitleId,
-                    OrganizationId = organizationId,
+                    StudioId = studioId,
                     Slug = "star-blasters",
                     ContentKind = "game",
                     LifecycleStatus = "draft",
@@ -580,7 +580,7 @@ public sealed class TitlePersistenceIntegrationTests : IAsyncLifetime
                 new Title
                 {
                     Id = secondTitleId,
-                    OrganizationId = organizationId,
+                    StudioId = studioId,
                     Slug = "puzzle-grove",
                     ContentKind = "game",
                     LifecycleStatus = "draft",

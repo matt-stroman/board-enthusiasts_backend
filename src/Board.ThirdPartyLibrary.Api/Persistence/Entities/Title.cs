@@ -1,7 +1,7 @@
 namespace Board.ThirdPartyLibrary.Api.Persistence.Entities;
 
 /// <summary>
-/// Stable catalog title owned by a developer organization.
+/// Stable catalog title owned by a developer studio.
 /// </summary>
 internal sealed class Title
 {
@@ -11,12 +11,12 @@ internal sealed class Title
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the owning organization identifier.
+    /// Gets or sets the owning studio identifier.
     /// </summary>
-    public Guid OrganizationId { get; set; }
+    public Guid StudioId { get; set; }
 
     /// <summary>
-    /// Gets or sets the organization-scoped route key for the title.
+    /// Gets or sets the studio-scoped route key for the title.
     /// </summary>
     public string Slug { get; set; } = string.Empty;
 
@@ -56,9 +56,9 @@ internal sealed class Title
     public DateTime UpdatedAtUtc { get; set; }
 
     /// <summary>
-    /// Gets or sets the owning organization.
+    /// Gets or sets the owning studio.
     /// </summary>
-    public Organization Organization { get; set; } = null!;
+    public Studio Studio { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the currently active metadata revision.

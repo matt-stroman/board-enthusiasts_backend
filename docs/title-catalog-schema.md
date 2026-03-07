@@ -78,7 +78,7 @@ High-level ownership split:
 
 Important integrity rules:
 
-- title slugs are unique only within an studio
+- title slugs are unique only within a studio
 - metadata revision numbers are unique only within a title
 - `titles.current_metadata_version_id` is constrained so it can only reference metadata that belongs to the same title
 - media roles are unique only within a title
@@ -169,7 +169,7 @@ Current supported publisher behavior:
 
 - `supported_publishers` is a platform-managed canonical registry
 - supported publishers are seeded through EF Core migrations
-- developers can list supported publishers and choose one when configuring an studio connection
+- developers can list supported publishers and choose one when configuring a studio connection
 
 Current integration connection behavior:
 

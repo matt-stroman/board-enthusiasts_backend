@@ -4,23 +4,23 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Board.ThirdPartyLibrary.Api.Persistence.Configurations;
 
-internal sealed class OrganizationMembershipConfiguration : IEntityTypeConfiguration<OrganizationMembership>
+internal sealed class StudioMembershipConfiguration : IEntityTypeConfiguration<StudioMembership>
 {
-    public void Configure(EntityTypeBuilder<OrganizationMembership> builder)
+    public void Configure(EntityTypeBuilder<StudioMembership> builder)
     {
         builder.ToTable("studio_memberships", tableBuilder =>
         {
-            tableBuilder.HasComment("Organization-scoped memberships and roles owned by the application database.");
+            tableBuilder.HasComment("Studio-scoped memberships and roles owned by the application database.");
             tableBuilder.HasCheckConstraint(
-                "ck_organization_memberships_role",
+                "ck_studio_memberships_role",
                 "role IN ('owner', 'admin', 'editor')");
         });
 
-        builder.HasKey(membership => new { membership.OrganizationId, membership.UserId })
-            .HasName("pk_organization_memberships");
+        builder.HasKey(membership => new { membership.StudioId, membership.UserId })
+            .HasName("pk_studio_memberships");
 
-        builder.Property(membership => membership.OrganizationId)
-            .HasColumnName("organization_id")
+        builder.Property(membership => membership.StudioId)
+            .HasColumnName("studio_id")
             .ValueGeneratedNever();
 
         builder.Property(membership => membership.UserId)
@@ -31,7 +31,7 @@ internal sealed class OrganizationMembershipConfiguration : IEntityTypeConfigura
             .HasColumnName("role")
             .HasMaxLength(20)
             .IsRequired()
-            .HasComment("Scoped role for the user within the organization.");
+            .HasComment("Scoped role for the user within the studio.");
 
         builder.Property(membership => membership.CreatedAtUtc)
             .HasColumnName("created_at")
@@ -44,18 +44,18 @@ internal sealed class OrganizationMembershipConfiguration : IEntityTypeConfigura
             .IsRequired();
 
         builder.HasIndex(membership => membership.UserId)
-            .HasDatabaseName("ix_organization_memberships_user_id");
+            .HasDatabaseName("ix_studio_memberships_user_id");
 
-        builder.HasOne(membership => membership.Organization)
-            .WithMany(organization => organization.Memberships)
-            .HasForeignKey(membership => membership.OrganizationId)
-            .HasConstraintName("fk_organization_memberships_organizations_organization_id")
+        builder.HasOne(membership => membership.Studio)
+            .WithMany(studio => studio.Memberships)
+            .HasForeignKey(membership => membership.StudioId)
+            .HasConstraintName("fk_studio_memberships_studios_studio_id")
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(membership => membership.User)
-            .WithMany(user => user.OrganizationMemberships)
+            .WithMany(user => user.StudioMemberships)
             .HasForeignKey(membership => membership.UserId)
-            .HasConstraintName("fk_organization_memberships_users_user_id")
+            .HasConstraintName("fk_studio_memberships_users_user_id")
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

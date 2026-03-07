@@ -1,7 +1,7 @@
 namespace Board.ThirdPartyLibrary.Api.Persistence.Entities;
 
 /// <summary>
-/// Organization-owned reusable connection to a supported or custom publisher/store.
+/// Studio-owned reusable connection to a supported or custom publisher/store.
 /// </summary>
 internal sealed class IntegrationConnection
 {
@@ -11,9 +11,9 @@ internal sealed class IntegrationConnection
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the owning organization identifier.
+    /// Gets or sets the owning studio identifier.
     /// </summary>
-    public Guid OrganizationId { get; set; }
+    public Guid StudioId { get; set; }
 
     /// <summary>
     /// Gets or sets the optional supported publisher identifier.
@@ -51,9 +51,9 @@ internal sealed class IntegrationConnection
     public DateTime UpdatedAtUtc { get; set; }
 
     /// <summary>
-    /// Gets or sets the owning organization.
+    /// Gets or sets the owning studio.
     /// </summary>
-    public Organization Organization { get; set; } = null!;
+    public Studio Studio { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the referenced supported publisher when present.

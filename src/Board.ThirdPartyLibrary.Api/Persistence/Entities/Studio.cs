@@ -1,9 +1,9 @@
 namespace Board.ThirdPartyLibrary.Api.Persistence.Entities;
 
 /// <summary>
-/// Developer organization that owns titles and related external acquisition configuration.
+/// Developer studio that owns titles and related external acquisition configuration.
 /// </summary>
-internal sealed class Organization
+internal sealed class Studio
 {
     public Guid Id { get; set; }
 
@@ -15,11 +15,15 @@ internal sealed class Organization
 
     public string? LogoUrl { get; set; }
 
+    public string? BannerUrl { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime UpdatedAtUtc { get; set; }
 
-    public ICollection<OrganizationMembership> Memberships { get; set; } = [];
+    public ICollection<StudioMembership> Memberships { get; set; } = [];
+
+    public ICollection<StudioLink> Links { get; set; } = [];
 
     public ICollection<Title> Titles { get; set; } = [];
 

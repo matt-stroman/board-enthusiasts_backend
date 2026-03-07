@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.Identity;
-using Board.ThirdPartyLibrary.Api.Organizations;
+using Board.ThirdPartyLibrary.Api.Studios;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -24,40 +24,40 @@ internal interface ITitleService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets a public catalog title by organization and title route key.
+    /// Gets a public catalog title by studio and title route key.
     /// </summary>
-    /// <param name="organizationSlug">Organization route key.</param>
-    /// <param name="titleSlug">Title route key scoped to the organization.</param>
+    /// <param name="studioSlug">Studio route key.</param>
+    /// <param name="titleSlug">Title route key scoped to the studio.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The public catalog title when visible; otherwise <see langword="null" />.</returns>
     Task<TitleSnapshot?> GetPublicTitleAsync(
-        string organizationSlug,
+        string studioSlug,
         string titleSlug,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lists titles for an organization when the caller has a managing membership role.
+    /// Lists titles for a studio when the caller has a managing membership role.
     /// </summary>
     /// <param name="claims">Authenticated caller claims.</param>
-    /// <param name="organizationId">Organization identifier.</param>
+    /// <param name="studioId">Studio identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Mutation-style result describing access and data.</returns>
-    Task<TitleListResult> ListOrganizationTitlesAsync(
+    Task<TitleListResult> ListStudioTitlesAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a new title and its initial metadata revision.
     /// </summary>
     /// <param name="claims">Authenticated caller claims.</param>
-    /// <param name="organizationId">Owning organization identifier.</param>
+    /// <param name="studioId">Owning studio identifier.</param>
     /// <param name="command">Stable title fields and initial metadata.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Mutation result describing the outcome.</returns>
     Task<TitleMutationResult> CreateTitleAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CreateTitleCommand command,
         CancellationToken cancellationToken = default);
 
@@ -273,7 +273,7 @@ internal sealed partial class TitleService(
     {
         var titleQuery = dbContext.Titles
             .AsNoTracking()
-            .Include(candidate => candidate.Organization)
+            .Include(candidate => candidate.Studio)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
             .Include(candidate => candidate.IntegrationBindings)
@@ -286,9 +286,9 @@ internal sealed partial class TitleService(
                 (candidate.LifecycleStatus == TitleLifecycleStatuses.Testing ||
                  candidate.LifecycleStatus == TitleLifecycleStatuses.Published));
 
-        if (!string.IsNullOrWhiteSpace(query.OrganizationSlug))
+        if (!string.IsNullOrWhiteSpace(query.StudioSlug))
         {
-            titleQuery = titleQuery.Where(candidate => candidate.Organization.Slug == query.OrganizationSlug);
+            titleQuery = titleQuery.Where(candidate => candidate.Studio.Slug == query.StudioSlug);
         }
 
         if (!string.IsNullOrWhiteSpace(query.ContentKind))
@@ -307,10 +307,10 @@ internal sealed partial class TitleService(
             CatalogSortModes.Genre => titleQuery
                 .OrderBy(candidate => candidate.CurrentMetadataVersion!.GenreDisplay)
                 .ThenBy(candidate => candidate.CurrentMetadataVersion!.DisplayName)
-                .ThenBy(candidate => candidate.Organization.DisplayName),
+                .ThenBy(candidate => candidate.Studio.DisplayName),
             _ => titleQuery
                 .OrderBy(candidate => candidate.CurrentMetadataVersion!.DisplayName)
-                .ThenBy(candidate => candidate.Organization.DisplayName)
+                .ThenBy(candidate => candidate.Studio.DisplayName)
                 .ThenBy(candidate => candidate.CurrentMetadataVersion!.GenreDisplay)
         };
 
@@ -334,13 +334,13 @@ internal sealed partial class TitleService(
     }
 
     public async Task<TitleSnapshot?> GetPublicTitleAsync(
-        string organizationSlug,
+        string studioSlug,
         string titleSlug,
         CancellationToken cancellationToken = default)
     {
         var title = await dbContext.Titles
             .AsNoTracking()
-            .Include(candidate => candidate.Organization)
+            .Include(candidate => candidate.Studio)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
             .Include(candidate => candidate.IntegrationBindings)
@@ -350,7 +350,7 @@ internal sealed partial class TitleService(
                 .ThenInclude(candidate => candidate!.MetadataVersion)
             .SingleOrDefaultAsync(
                 candidate =>
-                    candidate.Organization.Slug == organizationSlug &&
+                    candidate.Studio.Slug == studioSlug &&
                     candidate.Slug == titleSlug &&
                     candidate.CurrentMetadataVersionId != null &&
                     candidate.CurrentMetadataVersion != null &&
@@ -362,22 +362,22 @@ internal sealed partial class TitleService(
         return title is null ? null : MapTitle(title, includeDescription: true);
     }
 
-    public async Task<TitleListResult> ListOrganizationTitlesAsync(
+    public async Task<TitleListResult> ListStudioTitlesAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CancellationToken cancellationToken = default)
     {
         var actor = await EnsureActorAsync(claims, cancellationToken);
-        var organizationExists = await dbContext.Organizations
+        var studioExists = await dbContext.Studios
             .AsNoTracking()
-            .AnyAsync(candidate => candidate.Id == organizationId, cancellationToken);
+            .AnyAsync(candidate => candidate.Id == studioId, cancellationToken);
 
-        if (!organizationExists)
+        if (!studioExists)
         {
             return new TitleListResult(TitleListStatus.NotFound);
         }
 
-        var actorRole = await GetActorOrganizationRoleAsync(organizationId, actor.Id, cancellationToken);
+        var actorRole = await GetActorStudioRoleAsync(studioId, actor.Id, cancellationToken);
         if (!CanManageTitles(actorRole))
         {
             return new TitleListResult(TitleListStatus.Forbidden);
@@ -385,13 +385,13 @@ internal sealed partial class TitleService(
 
         var titles = await dbContext.Titles
             .AsNoTracking()
-            .Include(candidate => candidate.Organization)
+            .Include(candidate => candidate.Studio)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
             .Include(candidate => candidate.IntegrationBindings)
                 .ThenInclude(candidate => candidate.IntegrationConnection)
                     .ThenInclude(candidate => candidate.SupportedPublisher)
-            .Where(candidate => candidate.OrganizationId == organizationId && candidate.CurrentMetadataVersionId != null)
+            .Where(candidate => candidate.StudioId == studioId && candidate.CurrentMetadataVersionId != null)
             .OrderBy(candidate => candidate.CurrentMetadataVersion!.DisplayName)
             .Select(candidate => MapTitle(candidate, includeDescription: false))
             .ToListAsync(cancellationToken);
@@ -401,21 +401,21 @@ internal sealed partial class TitleService(
 
     public async Task<TitleMutationResult> CreateTitleAsync(
         IEnumerable<Claim> claims,
-        Guid organizationId,
+        Guid studioId,
         CreateTitleCommand command,
         CancellationToken cancellationToken = default)
     {
         var actor = await EnsureActorAsync(claims, cancellationToken);
-        var organization = await dbContext.Organizations
+        var studio = await dbContext.Studios
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == organizationId, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == studioId, cancellationToken);
 
-        if (organization is null)
+        if (studio is null)
         {
             return new TitleMutationResult(TitleMutationStatus.NotFound);
         }
 
-        var actorRole = await GetActorOrganizationRoleAsync(organizationId, actor.Id, cancellationToken);
+        var actorRole = await GetActorStudioRoleAsync(studioId, actor.Id, cancellationToken);
         if (!CanManageTitles(actorRole))
         {
             return new TitleMutationResult(TitleMutationStatus.Forbidden);
@@ -425,7 +425,7 @@ internal sealed partial class TitleService(
         var title = new Title
         {
             Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = command.Slug,
             ContentKind = command.ContentKind,
             LifecycleStatus = command.LifecycleStatus,
@@ -474,7 +474,7 @@ internal sealed partial class TitleService(
 
         return new TitleMutationResult(
             TitleMutationStatus.Success,
-            MapTitle(title, organization, metadataVersion, includeDescription: true));
+            MapTitle(title, studio, metadataVersion, includeDescription: true));
     }
 
     public async Task<TitleMutationResult> GetTitleAsync(
@@ -678,7 +678,7 @@ internal sealed partial class TitleService(
     {
         var actor = await EnsureActorAsync(claims, cancellationToken);
         var title = await dbContext.Titles
-            .Include(candidate => candidate.Organization)
+            .Include(candidate => candidate.Studio)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
             .Include(candidate => candidate.IntegrationBindings)
@@ -693,7 +693,7 @@ internal sealed partial class TitleService(
             return new TitleAccessResult(TitleAccessStatus.NotFound);
         }
 
-        var actorRole = await GetActorOrganizationRoleAsync(title.OrganizationId, actor.Id, cancellationToken);
+        var actorRole = await GetActorStudioRoleAsync(title.StudioId, actor.Id, cancellationToken);
         if (!CanManageTitles(actorRole))
         {
             return new TitleAccessResult(TitleAccessStatus.Forbidden);
@@ -710,16 +710,16 @@ internal sealed partial class TitleService(
         return await dbContext.Users.SingleAsync(candidate => candidate.KeycloakSubject == subject, cancellationToken);
     }
 
-    private async Task<string?> GetActorOrganizationRoleAsync(Guid organizationId, Guid actorUserId, CancellationToken cancellationToken) =>
-        await dbContext.OrganizationMemberships
-            .Where(candidate => candidate.OrganizationId == organizationId && candidate.UserId == actorUserId)
+    private async Task<string?> GetActorStudioRoleAsync(Guid studioId, Guid actorUserId, CancellationToken cancellationToken) =>
+        await dbContext.StudioMemberships
+            .Where(candidate => candidate.StudioId == studioId && candidate.UserId == actorUserId)
             .Select(candidate => candidate.Role)
             .SingleOrDefaultAsync(cancellationToken);
 
     private static bool CanManageTitles(string? role) =>
-        string.Equals(role, OrganizationRoles.Owner, StringComparison.Ordinal) ||
-        string.Equals(role, OrganizationRoles.Admin, StringComparison.Ordinal) ||
-        string.Equals(role, OrganizationRoles.Editor, StringComparison.Ordinal);
+        string.Equals(role, StudioRoles.Owner, StringComparison.Ordinal) ||
+        string.Equals(role, StudioRoles.Admin, StringComparison.Ordinal) ||
+        string.Equals(role, StudioRoles.Editor, StringComparison.Ordinal);
 
     private static void ApplyMetadata(TitleMetadataVersion metadataVersion, UpsertTitleMetadataCommand command, DateTime now)
     {
@@ -736,18 +736,18 @@ internal sealed partial class TitleService(
     }
 
     private static TitleSnapshot MapTitle(Title title, bool includeDescription) =>
-        MapTitle(title, title.Organization, title.CurrentMetadataVersion!, includeDescription);
+        MapTitle(title, title.Studio, title.CurrentMetadataVersion!, includeDescription);
 
     private static TitleSnapshot MapTitle(
         Title title,
-        Organization organization,
+        Studio studio,
         TitleMetadataVersion metadataVersion,
         bool includeDescription) =>
-        CreateTitleSnapshot(title, organization, metadataVersion, includeDescription);
+        CreateTitleSnapshot(title, studio, metadataVersion, includeDescription);
 
     private static TitleSnapshot CreateTitleSnapshot(
         Title title,
-        Organization organization,
+        Studio studio,
         TitleMetadataVersion metadataVersion,
         bool includeDescription)
     {
@@ -758,8 +758,8 @@ internal sealed partial class TitleService(
 
         return new TitleSnapshot(
             title.Id,
-            title.OrganizationId,
-            organization.Slug,
+            title.StudioId,
+            studio.Slug,
             title.Slug,
             title.ContentKind,
             title.LifecycleStatus,
@@ -841,7 +841,7 @@ internal sealed partial class TitleService(
 /// <summary>
 /// Command used to create a title with its initial metadata revision.
 /// </summary>
-/// <param name="Slug">Organization-scoped title route key.</param>
+/// <param name="Slug">Studio-scoped title route key.</param>
 /// <param name="ContentKind">Stable title content kind.</param>
 /// <param name="LifecycleStatus">Lifecycle status for the title.</param>
 /// <param name="Visibility">Public discoverability mode.</param>
@@ -856,7 +856,7 @@ internal sealed record CreateTitleCommand(
 /// <summary>
 /// Command used to update stable title fields.
 /// </summary>
-/// <param name="Slug">Organization-scoped title route key.</param>
+/// <param name="Slug">Studio-scoped title route key.</param>
 /// <param name="ContentKind">Stable title content kind.</param>
 /// <param name="LifecycleStatus">Lifecycle status for the title.</param>
 /// <param name="Visibility">Public discoverability mode.</param>
@@ -892,14 +892,14 @@ internal sealed record UpsertTitleMetadataCommand(
 /// <summary>
 /// Query options for public catalog browse requests.
 /// </summary>
-/// <param name="OrganizationSlug">Optional organization route key filter.</param>
+/// <param name="StudioSlug">Optional studio route key filter.</param>
 /// <param name="ContentKind">Optional content kind filter.</param>
 /// <param name="Genre">Optional exact genre display filter.</param>
 /// <param name="Sort">Stable sort mode.</param>
 /// <param name="PageNumber">1-based page number.</param>
 /// <param name="PageSize">Requested page size.</param>
 internal sealed record PublicCatalogListQuery(
-    string? OrganizationSlug,
+    string? StudioSlug,
     string? ContentKind,
     string? Genre,
     string Sort,
@@ -910,9 +910,9 @@ internal sealed record PublicCatalogListQuery(
 /// Flattened title projection used by endpoint DTO mapping.
 /// </summary>
 /// <param name="Id">Title identifier.</param>
-/// <param name="OrganizationId">Owning organization identifier.</param>
-/// <param name="OrganizationSlug">Owning organization route key.</param>
-/// <param name="Slug">Organization-scoped title route key.</param>
+/// <param name="StudioId">Owning studio identifier.</param>
+/// <param name="StudioSlug">Owning studio route key.</param>
+/// <param name="Slug">Studio-scoped title route key.</param>
 /// <param name="ContentKind">Stable title content kind.</param>
 /// <param name="LifecycleStatus">Lifecycle status for the title.</param>
 /// <param name="Visibility">Public discoverability mode.</param>
@@ -936,8 +936,8 @@ internal sealed record PublicCatalogListQuery(
 /// <param name="UpdatedAtUtc">UTC update timestamp when requested.</param>
 internal sealed record TitleSnapshot(
     Guid Id,
-    Guid OrganizationId,
-    string OrganizationSlug,
+    Guid StudioId,
+    string StudioSlug,
     string Slug,
     string ContentKind,
     string LifecycleStatus,
@@ -1045,7 +1045,7 @@ internal sealed record TitleMutationResult(
     string? ErrorCode = null);
 
 /// <summary>
-/// Result wrapper for organization title listings.
+/// Result wrapper for studio title listings.
 /// </summary>
 /// <param name="Status">Operation status.</param>
 /// <param name="Titles">Returned title snapshots when available.</param>
@@ -1083,7 +1083,7 @@ internal enum TitleMutationStatus
 }
 
 /// <summary>
-/// Outcome codes for organization title listings.
+/// Outcome codes for studio title listings.
 /// </summary>
 internal enum TitleListStatus
 {

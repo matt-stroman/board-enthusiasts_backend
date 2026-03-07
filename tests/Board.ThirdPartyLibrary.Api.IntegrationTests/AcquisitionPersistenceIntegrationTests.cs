@@ -51,7 +51,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
 
         await using (var seedContext = CreateDbContext())
@@ -64,17 +64,17 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -89,7 +89,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         using var client = factory.CreateClient();
 
         using var createTitleResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -142,7 +142,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
                 .GetString()!);
 
         using var createConnectionResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/integration-connections",
+            $"/developer/studios/{studioId}/integration-connections",
             new
             {
                 supportedPublisherId = itchPublisherId,
@@ -192,7 +192,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             "itch.io",
             publicDetailDocument.RootElement.GetProperty("title").GetProperty("acquisition").GetProperty("providerDisplayName").GetString());
 
-        using var deleteConnectionResponse = await client.DeleteAsync($"/developer/studios/{organizationId}/integration-connections/{connectionId}");
+        using var deleteConnectionResponse = await client.DeleteAsync($"/developer/studios/{studioId}/integration-connections/{connectionId}");
         Assert.Equal(HttpStatusCode.Conflict, deleteConnectionResponse.StatusCode);
     }
 
@@ -202,13 +202,13 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         var firstConnectionId = Guid.NewGuid();
         var secondConnectionId = Guid.NewGuid();
 
-        await SeedTitleWithConnectionsAsync(dbContext, organizationId, titleId, metadataId, firstConnectionId, secondConnectionId);
+        await SeedTitleWithConnectionsAsync(dbContext, studioId, titleId, metadataId, firstConnectionId, secondConnectionId);
 
         dbContext.TitleIntegrationBindings.Add(new TitleIntegrationBinding
         {
@@ -244,12 +244,12 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
 
-        await SeedTitleWithConnectionsAsync(dbContext, organizationId, titleId, metadataId, connectionId, Guid.NewGuid());
+        await SeedTitleWithConnectionsAsync(dbContext, studioId, titleId, metadataId, connectionId, Guid.NewGuid());
 
         dbContext.TitleIntegrationBindings.Add(new TitleIntegrationBinding
         {
@@ -272,11 +272,11 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
 
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "stellar-forge",
             DisplayName = "Stellar Forge",
             CreatedAtUtc = DateTime.UtcNow,
@@ -287,7 +287,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         dbContext.IntegrationConnections.Add(new IntegrationConnection
         {
             Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
+            StudioId = studioId,
             SupportedPublisherId = SupportedPublisherConfiguration.ItchIoId,
             CustomPublisherDisplayName = "Should Fail",
             CustomPublisherHomepageUrl = "https://invalid.example/",
@@ -307,7 +307,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
 
         await using (var seedContext = CreateDbContext())
@@ -320,17 +320,17 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -345,7 +345,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         using var client = factory.CreateClient();
 
         using var createConnectionResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/integration-connections",
+            $"/developer/studios/{studioId}/integration-connections",
             new
             {
                 customPublisherDisplayName = "Stellar Forge Direct",
@@ -363,7 +363,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         var connection = createConnectionDocument.RootElement.GetProperty("integrationConnection");
         Assert.Equal("Stellar Forge Direct", connection.GetProperty("customPublisherDisplayName").GetString());
 
-        using var listConnectionsResponse = await client.GetAsync($"/developer/studios/{organizationId}/integration-connections");
+        using var listConnectionsResponse = await client.GetAsync($"/developer/studios/{studioId}/integration-connections");
         var listConnectionsPayload = await listConnectionsResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, listConnectionsResponse.StatusCode);
 
@@ -381,7 +381,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -397,17 +397,17 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -416,7 +416,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             seedContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "testing",
@@ -445,7 +445,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             seedContext.IntegrationConnections.Add(new IntegrationConnection
             {
                 Id = connectionId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 CustomPublisherDisplayName = "Disabled Store",
                 CustomPublisherHomepageUrl = "https://disabled.example/",
                 IsEnabled = false,
@@ -486,15 +486,15 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
 
     private async Task SeedTitleWithConnectionsAsync(
         BoardLibraryDbContext dbContext,
-        Guid organizationId,
+        Guid studioId,
         Guid titleId,
         Guid metadataId,
         Guid firstConnectionId,
         Guid secondConnectionId)
     {
-        dbContext.Organizations.Add(new Organization
+        dbContext.Studios.Add(new Studio
         {
-            Id = organizationId,
+            Id = studioId,
             Slug = "stellar-forge",
             DisplayName = "Stellar Forge",
             CreatedAtUtc = DateTime.UtcNow,
@@ -503,7 +503,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
         dbContext.Titles.Add(new Title
         {
             Id = titleId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = "star-blasters",
             ContentKind = "game",
             LifecycleStatus = "testing",
@@ -537,7 +537,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             new IntegrationConnection
             {
                 Id = firstConnectionId,
-                OrganizationId = title.OrganizationId,
+                StudioId = title.StudioId,
                 SupportedPublisherId = SupportedPublisherConfiguration.ItchIoId,
                 IsEnabled = true,
                 CreatedAtUtc = DateTime.UtcNow,
@@ -546,7 +546,7 @@ public sealed class AcquisitionPersistenceIntegrationTests : IAsyncLifetime
             new IntegrationConnection
             {
                 Id = secondConnectionId,
-                OrganizationId = title.OrganizationId,
+                StudioId = title.StudioId,
                 CustomPublisherDisplayName = "Second Store",
                 CustomPublisherHomepageUrl = "https://store-two.example/",
                 IsEnabled = true,

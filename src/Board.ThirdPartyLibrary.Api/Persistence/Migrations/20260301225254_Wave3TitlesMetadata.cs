@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -45,8 +45,8 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
-                    organization_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    slug = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false, comment: "Human-readable unique route key scoped to the owning organization."),
+                    studio_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    slug = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false, comment: "Human-readable unique route key scoped to the owning studio."),
                     content_kind = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     lifecycle_status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, comment: "Catalog lifecycle state used to control developer and public visibility."),
                     visibility = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, comment: "Public discoverability for routes and listing behavior."),
@@ -61,9 +61,9 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                     table.CheckConstraint("ck_titles_lifecycle_status", "lifecycle_status IN ('draft', 'testing', 'published', 'archived')");
                     table.CheckConstraint("ck_titles_visibility", "visibility IN ('private', 'unlisted', 'listed')");
                     table.ForeignKey(
-                        name: "fk_titles_organizations_organization_id",
-                        column: x => x.organization_id,
-                        principalTable: "organizations",
+                        name: "fk_titles_studios_studio_id",
+                        column: x => x.studio_id,
+                        principalTable: "studios",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -73,7 +73,7 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                         principalColumns: new[] { "id", "title_id" },
                         onDelete: ReferentialAction.Restrict);
                 },
-                comment: "Catalog titles owned by developer organizations.");
+                comment: "Catalog titles owned by developer studios.");
 
             migrationBuilder.CreateIndex(
                 name: "ix_title_metadata_versions_title_id",
@@ -92,14 +92,14 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                 columns: new[] { "current_metadata_version_id", "id" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_titles_organization_id",
+                name: "ix_titles_studio_id",
                 table: "titles",
-                column: "organization_id");
+                column: "studio_id");
 
             migrationBuilder.CreateIndex(
-                name: "ux_titles_organization_id_slug",
+                name: "ux_titles_studio_id_slug",
                 table: "titles",
-                columns: new[] { "organization_id", "slug" },
+                columns: new[] { "studio_id", "slug" },
                 unique: true);
 
             migrationBuilder.AddForeignKey(

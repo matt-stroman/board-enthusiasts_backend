@@ -17,7 +17,7 @@ internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
     {
         builder.ToTable("titles", tableBuilder =>
         {
-            tableBuilder.HasComment("Catalog titles owned by developer organizations.");
+            tableBuilder.HasComment("Catalog titles owned by developer studios.");
             tableBuilder.HasCheckConstraint(
                 "ck_titles_content_kind",
                 "content_kind IN ('game', 'app')");
@@ -36,15 +36,15 @@ internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
             .HasColumnName("id")
             .ValueGeneratedNever();
 
-        builder.Property(title => title.OrganizationId)
-            .HasColumnName("organization_id")
+        builder.Property(title => title.StudioId)
+            .HasColumnName("studio_id")
             .ValueGeneratedNever();
 
         builder.Property(title => title.Slug)
             .HasColumnName("slug")
             .HasMaxLength(100)
             .IsRequired()
-            .HasComment("Human-readable unique route key scoped to the owning organization.");
+            .HasComment("Human-readable unique route key scoped to the owning studio.");
 
         builder.Property(title => title.ContentKind)
             .HasColumnName("content_kind")
@@ -79,20 +79,20 @@ internal sealed class TitleConfiguration : IEntityTypeConfiguration<Title>
             .HasColumnType("timestamp with time zone")
             .IsRequired();
 
-        builder.HasIndex(title => title.OrganizationId)
-            .HasDatabaseName("ix_titles_organization_id");
+        builder.HasIndex(title => title.StudioId)
+            .HasDatabaseName("ix_titles_studio_id");
 
         builder.HasIndex(title => title.CurrentReleaseId)
             .HasDatabaseName("ix_titles_current_release_id");
 
-        builder.HasIndex(title => new { title.OrganizationId, title.Slug })
+        builder.HasIndex(title => new { title.StudioId, title.Slug })
             .IsUnique()
-            .HasDatabaseName("ux_titles_organization_id_slug");
+            .HasDatabaseName("ux_titles_studio_id_slug");
 
-        builder.HasOne(title => title.Organization)
-            .WithMany(organization => organization.Titles)
-            .HasForeignKey(title => title.OrganizationId)
-            .HasConstraintName("fk_titles_organizations_organization_id")
+        builder.HasOne(title => title.Studio)
+            .WithMany(studio => studio.Titles)
+            .HasForeignKey(title => title.StudioId)
+            .HasConstraintName("fk_titles_studios_studio_id")
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(title => title.CurrentMetadataVersion)

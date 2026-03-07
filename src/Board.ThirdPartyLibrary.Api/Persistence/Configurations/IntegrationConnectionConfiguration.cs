@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Board.ThirdPartyLibrary.Api.Persistence.Configurations;
 
 /// <summary>
-/// Entity Framework configuration for organization-owned integration connections.
+/// Entity Framework configuration for studio-owned integration connections.
 /// </summary>
 internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfiguration<IntegrationConnection>
 {
@@ -14,7 +14,7 @@ internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfigurat
     {
         builder.ToTable("integration_connections", tableBuilder =>
         {
-            tableBuilder.HasComment("Organization-owned reusable references to supported or custom external publishers/stores.");
+            tableBuilder.HasComment("Studio-owned reusable references to supported or custom external publishers/stores.");
             tableBuilder.HasCheckConstraint(
                 "ck_integration_connections_publisher_choice",
                 "(supported_publisher_id IS NOT NULL AND custom_publisher_display_name IS NULL AND custom_publisher_homepage_url IS NULL) OR " +
@@ -28,8 +28,8 @@ internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfigurat
             .HasColumnName("id")
             .ValueGeneratedNever();
 
-        builder.Property(connection => connection.OrganizationId)
-            .HasColumnName("organization_id")
+        builder.Property(connection => connection.StudioId)
+            .HasColumnName("studio_id")
             .ValueGeneratedNever();
 
         builder.Property(connection => connection.SupportedPublisherId)
@@ -63,16 +63,16 @@ internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfigurat
             .HasColumnType("timestamp with time zone")
             .IsRequired();
 
-        builder.HasIndex(connection => connection.OrganizationId)
-            .HasDatabaseName("ix_integration_connections_organization_id");
+        builder.HasIndex(connection => connection.StudioId)
+            .HasDatabaseName("ix_integration_connections_studio_id");
 
         builder.HasIndex(connection => connection.SupportedPublisherId)
             .HasDatabaseName("ix_integration_connections_supported_publisher_id");
 
-        builder.HasOne(connection => connection.Organization)
-            .WithMany(organization => organization.IntegrationConnections)
-            .HasForeignKey(connection => connection.OrganizationId)
-            .HasConstraintName("fk_integration_connections_organizations_organization_id")
+        builder.HasOne(connection => connection.Studio)
+            .WithMany(studio => studio.IntegrationConnections)
+            .HasForeignKey(connection => connection.StudioId)
+            .HasConstraintName("fk_integration_connections_studios_studio_id")
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(connection => connection.SupportedPublisher)

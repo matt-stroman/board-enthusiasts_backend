@@ -371,7 +371,7 @@ internal static class AcquisitionEndpoints
     private static IntegrationConnectionDto MapIntegrationConnection(IntegrationConnectionSnapshot connection) =>
         new(
             connection.Id,
-            connection.OrganizationId,
+            connection.StudioId,
             connection.SupportedPublisherId,
             connection.SupportedPublisher is null ? null : MapSupportedPublisher(connection.SupportedPublisher),
             connection.CustomPublisherDisplayName,
@@ -427,11 +427,11 @@ internal static class AcquisitionEndpoints
 }
 
 /// <summary>
-/// Request payload for creating or updating an organization integration connection.
+/// Request payload for creating or updating a studio integration connection.
 /// </summary>
 /// <param name="SupportedPublisherId">Canonical supported publisher identifier when using a registry entry.</param>
-/// <param name="CustomPublisherDisplayName">Custom publisher display name when using an organization-owned custom connection.</param>
-/// <param name="CustomPublisherHomepageUrl">Custom publisher homepage URL when using an organization-owned custom connection.</param>
+/// <param name="CustomPublisherDisplayName">Custom publisher display name when using a studio-owned custom connection.</param>
+/// <param name="CustomPublisherHomepageUrl">Custom publisher homepage URL when using a studio-owned custom connection.</param>
 /// <param name="Configuration">Optional provider-specific non-secret configuration object.</param>
 /// <param name="IsEnabled">Whether the connection can be selected for enabled bindings.</param>
 internal sealed record UpsertIntegrationConnectionRequest(

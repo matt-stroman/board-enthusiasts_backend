@@ -6,7 +6,7 @@ using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
 using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Moderation;
-using Board.ThirdPartyLibrary.Api.Organizations;
+using Board.ThirdPartyLibrary.Api.Studios;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Board.ThirdPartyLibrary.Api.Titles;
 using Microsoft.AspNetCore.Authentication;
@@ -64,8 +64,12 @@ builder.Services.AddDbContext<BoardLibraryDbContext>(options =>
 builder.Services.AddScoped<IIdentityPersistenceService, IdentityPersistenceService>();
 builder.Services.AddScoped<IDeveloperEnrollmentService, DeveloperEnrollmentService>();
 builder.Services.AddScoped<IAcquisitionService, AcquisitionService>();
-builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<IStudioService, StudioService>();
 builder.Services.AddScoped<ITitleService, TitleService>();
+builder.Services
+    .AddOptions<StudioMediaStorageOptions>()
+    .Bind(builder.Configuration.GetSection(StudioMediaStorageOptions.SectionName));
+builder.Services.AddSingleton<IStudioMediaStorage, LocalStudioMediaStorage>();
 builder.Services
     .AddOptions<TitleMediaStorageOptions>()
     .Bind(builder.Configuration.GetSection(TitleMediaStorageOptions.SectionName));
@@ -97,6 +101,8 @@ var app = builder.Build();
 
 await ApplyDatabaseMigrationsAsync(app.Services, hasBoardLibraryConnectionString);
 
+var studioMediaStorage = app.Services.GetRequiredService<IStudioMediaStorage>();
+Directory.CreateDirectory(studioMediaStorage.RootPath);
 var titleMediaStorage = app.Services.GetRequiredService<ITitleMediaStorage>();
 Directory.CreateDirectory(titleMediaStorage.RootPath);
 
@@ -120,6 +126,12 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 app.UseStaticFiles(new StaticFileOptions
 {
+    FileProvider = new PhysicalFileProvider(studioMediaStorage.RootPath),
+    RequestPath = "/uploads/studio-media"
+});
+
+app.UseStaticFiles(new StaticFileOptions
+{
     FileProvider = new PhysicalFileProvider(titleMediaStorage.RootPath),
     RequestPath = "/uploads/title-media"
 });
@@ -130,7 +142,7 @@ app.UseAuthorization();
 app.MapIdentityEndpoints();
 app.MapModerationEndpoints();
 app.MapAcquisitionEndpoints();
-app.MapOrganizationEndpoints();
+app.MapStudioEndpoints();
 app.MapTitleEndpoints();
 
 app.Run();
@@ -147,6 +159,8 @@ static async Task ApplyDatabaseMigrationsAsync(IServiceProvider services, bool a
 
     if (dbContext.Database.IsRelational())
     {
+        await MigrationHistoryCompatibility.NormalizeAsync(dbContext);
+        await LegacySchemaCompatibility.NormalizeAsync(dbContext);
         await dbContext.Database.MigrateAsync();
         return;
     }

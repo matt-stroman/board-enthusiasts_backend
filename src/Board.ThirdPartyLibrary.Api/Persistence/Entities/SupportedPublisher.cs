@@ -41,7 +41,7 @@ internal sealed class SupportedPublisher
     public DateTime UpdatedAtUtc { get; set; }
 
     /// <summary>
-    /// Gets or sets organization-owned integration connections using this publisher.
+    /// Gets or sets studio-owned integration connections using this publisher.
     /// </summary>
     public ICollection<IntegrationConnection> IntegrationConnections { get; set; } = [];
 }

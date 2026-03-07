@@ -50,7 +50,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
 
         await using (var seedContext = CreateDbContext())
@@ -63,17 +63,17 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -91,7 +91,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
         using var client = factory.CreateClient();
 
         using var createTitleResponse = await client.PostAsJsonAsync(
-            $"/developer/studios/{organizationId}/titles",
+            $"/developer/studios/{studioId}/titles",
             new
             {
                 slug = "star-blasters",
@@ -220,7 +220,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
@@ -235,24 +235,24 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
             await seedContext.SaveChangesAsync();
-            await SeedTitleWithMetadataAsync(seedContext, organizationId, titleId, metadataId);
+            await SeedTitleWithMetadataAsync(seedContext, studioId, titleId, metadataId);
         }
 
         using var factory = new RealPostgresApiFactory(
@@ -283,12 +283,12 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithDuplicateMediaRole_RejectsSecondRole()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
 
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
-        await SeedTitleAsync(dbContext, organizationId, titleId);
+        await SeedTitleAsync(dbContext, studioId, titleId);
 
         dbContext.TitleMediaAssets.Add(new TitleMediaAsset
         {
@@ -317,13 +317,13 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithDuplicateReleaseVersion_RejectsSecondVersion()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
 
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
-        await SeedTitleWithMetadataAsync(dbContext, organizationId, titleId, metadataId);
+        await SeedTitleWithMetadataAsync(dbContext, studioId, titleId, metadataId);
 
         dbContext.TitleReleases.Add(new TitleRelease
         {
@@ -354,7 +354,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithCrossTitleCurrentReleasePointer_RejectsInvalidReference()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var firstTitleId = Guid.NewGuid();
         var secondTitleId = Guid.NewGuid();
         var firstMetadataId = Guid.NewGuid();
@@ -363,8 +363,8 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
 
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
-        await SeedTitleWithMetadataAsync(dbContext, organizationId, firstTitleId, firstMetadataId, "star-blasters");
-        await SeedTitleWithMetadataAsync(dbContext, organizationId, secondTitleId, secondMetadataId, "puzzle-grove");
+        await SeedTitleWithMetadataAsync(dbContext, studioId, firstTitleId, firstMetadataId, "star-blasters");
+        await SeedTitleWithMetadataAsync(dbContext, studioId, secondTitleId, secondMetadataId, "puzzle-grove");
 
         dbContext.TitleReleases.Add(new TitleRelease
         {
@@ -388,7 +388,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithCrossTitleMetadataVersionInRelease_RejectsInvalidReference()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var firstTitleId = Guid.NewGuid();
         var secondTitleId = Guid.NewGuid();
         var firstMetadataId = Guid.NewGuid();
@@ -396,8 +396,8 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
 
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
-        await SeedTitleWithMetadataAsync(dbContext, organizationId, firstTitleId, firstMetadataId, "star-blasters");
-        await SeedTitleWithMetadataAsync(dbContext, organizationId, secondTitleId, secondMetadataId, "puzzle-grove");
+        await SeedTitleWithMetadataAsync(dbContext, studioId, firstTitleId, firstMetadataId, "star-blasters");
+        await SeedTitleWithMetadataAsync(dbContext, studioId, secondTitleId, secondMetadataId, "puzzle-grove");
 
         dbContext.TitleReleases.Add(new TitleRelease
         {
@@ -416,14 +416,14 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Schema_WithDuplicateArtifactIdentity_RejectsSecondArtifact()
     {
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
         var releaseId = Guid.NewGuid();
 
         await using var dbContext = CreateDbContext();
         await dbContext.Database.MigrateAsync();
-        await SeedTitleWithMetadataAsync(dbContext, organizationId, titleId, metadataId);
+        await SeedTitleWithMetadataAsync(dbContext, studioId, titleId, metadataId);
 
         dbContext.TitleReleases.Add(new TitleRelease
         {
@@ -471,7 +471,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
             await migrationContext.Database.MigrateAsync();
         }
 
-        var organizationId = Guid.NewGuid();
+        var studioId = Guid.NewGuid();
         var editorUserId = Guid.NewGuid();
         var titleId = Guid.NewGuid();
         var metadataId = Guid.NewGuid();
@@ -489,17 +489,17 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.Organizations.Add(new Organization
+            seedContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-            seedContext.OrganizationMemberships.Add(new OrganizationMembership
+            seedContext.StudioMemberships.Add(new StudioMembership
             {
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 UserId = editorUserId,
                 Role = "editor",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -508,7 +508,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
             seedContext.Titles.Add(new Title
             {
                 Id = titleId,
-                OrganizationId = organizationId,
+                StudioId = studioId,
                 Slug = "star-blasters",
                 ContentKind = "game",
                 LifecycleStatus = "draft",
@@ -595,13 +595,13 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
         Assert.Equal("release_artifact_identity_conflict", document.RootElement.GetProperty("code").GetString());
     }
 
-    private async Task SeedTitleAsync(BoardLibraryDbContext dbContext, Guid organizationId, Guid titleId, string slug = "star-blasters")
+    private async Task SeedTitleAsync(BoardLibraryDbContext dbContext, Guid studioId, Guid titleId, string slug = "star-blasters")
     {
-        if (!await dbContext.Organizations.AnyAsync(candidate => candidate.Id == organizationId))
+        if (!await dbContext.Studios.AnyAsync(candidate => candidate.Id == studioId))
         {
-            dbContext.Organizations.Add(new Organization
+            dbContext.Studios.Add(new Studio
             {
-                Id = organizationId,
+                Id = studioId,
                 Slug = "stellar-forge",
                 DisplayName = "Stellar Forge",
                 CreatedAtUtc = DateTime.UtcNow,
@@ -612,7 +612,7 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
         dbContext.Titles.Add(new Title
         {
             Id = titleId,
-            OrganizationId = organizationId,
+            StudioId = studioId,
             Slug = slug,
             ContentKind = "game",
             LifecycleStatus = "draft",
@@ -623,9 +623,9 @@ public sealed class TitleWave4PersistenceIntegrationTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
     }
 
-    private async Task SeedTitleWithMetadataAsync(BoardLibraryDbContext dbContext, Guid organizationId, Guid titleId, Guid metadataId, string slug = "star-blasters")
+    private async Task SeedTitleWithMetadataAsync(BoardLibraryDbContext dbContext, Guid studioId, Guid titleId, Guid metadataId, string slug = "star-blasters")
     {
-        await SeedTitleAsync(dbContext, organizationId, titleId, slug);
+        await SeedTitleAsync(dbContext, studioId, titleId, slug);
         dbContext.TitleMetadataVersions.Add(new TitleMetadataVersion
         {
             Id = metadataId,

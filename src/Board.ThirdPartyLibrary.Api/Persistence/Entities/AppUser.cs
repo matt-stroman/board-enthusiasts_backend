@@ -81,7 +81,7 @@ internal sealed class AppUser
     public UserBoardProfile? BoardProfile { get; set; }
 
     /// <summary>
-    /// Gets or sets the organization memberships for this user projection.
+    /// Gets or sets the studio memberships for this user projection.
     /// </summary>
-    public ICollection<OrganizationMembership> OrganizationMemberships { get; set; } = [];
+    public ICollection<StudioMembership> StudioMemberships { get; set; } = [];
 }

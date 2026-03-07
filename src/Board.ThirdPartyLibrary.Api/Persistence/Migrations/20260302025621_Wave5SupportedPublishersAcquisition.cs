@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -36,7 +36,7 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
-                    organization_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    studio_id = table.Column<Guid>(type: "uuid", nullable: false),
                     supported_publisher_id = table.Column<Guid>(type: "uuid", nullable: true),
                     custom_publisher_display_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     custom_publisher_homepage_url = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
@@ -50,9 +50,9 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                     table.PrimaryKey("pk_integration_connections", x => x.id);
                     table.CheckConstraint("ck_integration_connections_publisher_choice", "(supported_publisher_id IS NOT NULL AND custom_publisher_display_name IS NULL AND custom_publisher_homepage_url IS NULL) OR (supported_publisher_id IS NULL AND custom_publisher_display_name IS NOT NULL AND custom_publisher_homepage_url IS NOT NULL)");
                     table.ForeignKey(
-                        name: "fk_integration_connections_organizations_organization_id",
-                        column: x => x.organization_id,
-                        principalTable: "organizations",
+                        name: "fk_integration_connections_studios_studio_id",
+                        column: x => x.studio_id,
+                        principalTable: "studios",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -62,7 +62,7 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                         principalColumn: "id",
                         onDelete: ReferentialAction.Restrict);
                 },
-                comment: "Organization-owned reusable references to supported or custom external publishers/stores.");
+                comment: "Studio-owned reusable references to supported or custom external publishers/stores.");
 
             migrationBuilder.CreateTable(
                 name: "title_integration_bindings",
@@ -109,9 +109,9 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_integration_connections_organization_id",
+                name: "ix_integration_connections_studio_id",
                 table: "integration_connections",
-                column: "organization_id");
+                column: "studio_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_integration_connections_supported_publisher_id",

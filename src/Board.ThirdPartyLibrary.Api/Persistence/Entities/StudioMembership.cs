@@ -1,14 +1,14 @@
 namespace Board.ThirdPartyLibrary.Api.Persistence.Entities;
 
 /// <summary>
-/// Join entity linking an application user to an organization role.
+/// Join entity linking an application user to a studio role.
 /// </summary>
-internal sealed class OrganizationMembership
+internal sealed class StudioMembership
 {
     /// <summary>
-    /// Gets or sets the owning organization identifier.
+    /// Gets or sets the owning studio identifier.
     /// </summary>
-    public Guid OrganizationId { get; set; }
+    public Guid StudioId { get; set; }
 
     /// <summary>
     /// Gets or sets the member user identifier.
@@ -16,7 +16,7 @@ internal sealed class OrganizationMembership
     public Guid UserId { get; set; }
 
     /// <summary>
-    /// Gets or sets the organization-scoped membership role.
+    /// Gets or sets the studio-scoped membership role.
     /// </summary>
     public string Role { get; set; } = string.Empty;
 
@@ -31,9 +31,9 @@ internal sealed class OrganizationMembership
     public DateTime UpdatedAtUtc { get; set; }
 
     /// <summary>
-    /// Gets or sets the owning organization.
+    /// Gets or sets the owning studio.
     /// </summary>
-    public Organization Organization { get; set; } = null!;
+    public Studio Studio { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the member user projection.

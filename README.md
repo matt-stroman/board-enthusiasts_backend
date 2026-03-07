@@ -4,7 +4,7 @@ A backend service for third party developers for the Board ecosystem to use to r
 
 Current implementation status:
 
-- implemented now: health endpoints, Keycloak-backed identity/auth foundation, review-based developer enrollment plus moderator approval, Wave 1 persistence for `users` and `user_board_profiles`, user profile and avatar management endpoints, Wave 2 organizations and memberships, and Waves 3 through 5 title/catalog and acquisition persistence
+- implemented now: health endpoints, Keycloak-backed identity/auth foundation, review-based developer enrollment plus moderator approval, Wave 1 persistence for `users` and `user_board_profiles`, user profile and avatar management endpoints, Wave 2 studios and memberships, and Waves 3 through 5 title/catalog and acquisition persistence
 - planned next: Wave 6 unified commerce and entitlements
 
 ## Table of Contents
@@ -49,7 +49,7 @@ Verify endpoints:
 Invoke-WebRequest -SkipCertificateCheck -HttpVersion 2.0 https://localhost:7085/health/live
 Invoke-WebRequest -SkipCertificateCheck -HttpVersion 2.0 https://localhost:7085/health/ready
 Invoke-WebRequest -SkipCertificateCheck -HttpVersion 2.0 https://localhost:7085/identity/auth/config
-Invoke-WebRequest -SkipCertificateCheck -HttpVersion 2.0 https://localhost:7085/organizations
+Invoke-WebRequest -SkipCertificateCheck -HttpVersion 2.0 https://localhost:7085/studios
 Invoke-WebRequest -SkipCertificateCheck -HttpVersion 2.0 https://localhost:7085/catalog
 ```
 
