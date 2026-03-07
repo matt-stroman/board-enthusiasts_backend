@@ -155,6 +155,34 @@ internal static class IdentityEndpoints
             return Results.Ok(BuildCurrentUserResponse(user.Claims));
         });
 
+        group.MapGet("/me/notifications", [Authorize] async (
+            ClaimsPrincipal user,
+            IUserNotificationService userNotificationService,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await userNotificationService.GetCurrentUserNotificationsAsync(user.Claims, cancellationToken);
+            return Results.Ok(new UserNotificationListResponse(result.Notifications?.Select(MapUserNotification).ToArray() ?? []));
+        });
+
+        group.MapPost("/me/notifications/{notificationId:guid}/read", [Authorize] async (
+            ClaimsPrincipal user,
+            Guid notificationId,
+            IUserNotificationService userNotificationService,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await userNotificationService.MarkCurrentUserNotificationReadAsync(user.Claims, notificationId, cancellationToken);
+            return result.Status switch
+            {
+                UserNotificationMutationStatus.Success => Results.Ok(new UserNotificationResponse(MapUserNotification(result.Notification!))),
+                UserNotificationMutationStatus.NotFound => CreateProblemResult(
+                    StatusCodes.Status404NotFound,
+                    "Notification not found",
+                    "The requested notification does not exist for the current user.",
+                    "notification_not_found"),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        });
+
         group.MapGet("/me/profile", [Authorize] async (
             ClaimsPrincipal user,
             IIdentityPersistenceService identityPersistenceService,
@@ -460,6 +488,18 @@ internal static class IdentityEndpoints
             snapshot.Initials,
             snapshot.UpdatedAtUtc);
 
+    private static UserNotificationDto MapUserNotification(UserNotificationSnapshot snapshot) =>
+        new(
+            snapshot.Id,
+            snapshot.Category,
+            snapshot.Title,
+            snapshot.Body,
+            snapshot.ActionUrl,
+            snapshot.IsRead,
+            snapshot.ReadAtUtc,
+            snapshot.CreatedAtUtc,
+            snapshot.UpdatedAtUtc);
+
     private static IResult CreateProblemResult(int statusCode, string title, string detail, string code) =>
         Results.Json(
             new ProblemEnvelope(
@@ -539,6 +579,30 @@ internal sealed record CurrentUserResponse(
     bool EmailVerified,
     string? IdentityProvider,
     IReadOnlyList<string> Roles);
+
+/// <summary>
+/// Notification payload returned for the current user.
+/// </summary>
+internal sealed record UserNotificationDto(
+    Guid Id,
+    string Category,
+    string Title,
+    string Body,
+    string? ActionUrl,
+    bool IsRead,
+    DateTime? ReadAt,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+/// <summary>
+/// Response wrapper for current-user notifications.
+/// </summary>
+internal sealed record UserNotificationListResponse(IReadOnlyList<UserNotificationDto> Notifications);
+
+/// <summary>
+/// Response wrapper for a single notification mutation.
+/// </summary>
+internal sealed record UserNotificationResponse(UserNotificationDto Notification);
 
 /// <summary>
 /// Application-managed profile details for the current user.

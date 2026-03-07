@@ -76,6 +76,36 @@ internal sealed class BoardLibraryDbContext(DbContextOptions<BoardLibraryDbConte
     public DbSet<ReleaseArtifact> ReleaseArtifacts => Set<ReleaseArtifact>();
 
     /// <summary>
+    /// Gets owned-title library entries for players.
+    /// </summary>
+    public DbSet<PlayerOwnedTitle> PlayerOwnedTitles => Set<PlayerOwnedTitle>();
+
+    /// <summary>
+    /// Gets private wishlist entries for players.
+    /// </summary>
+    public DbSet<PlayerWishlistEntry> PlayerWishlistEntries => Set<PlayerWishlistEntry>();
+
+    /// <summary>
+    /// Gets title-moderation reports submitted by players.
+    /// </summary>
+    public DbSet<TitleReport> TitleReports => Set<TitleReport>();
+
+    /// <summary>
+    /// Gets discussion messages associated with title reports.
+    /// </summary>
+    public DbSet<TitleReportMessage> TitleReportMessages => Set<TitleReportMessage>();
+
+    /// <summary>
+    /// Gets in-app notifications targeted to local users.
+    /// </summary>
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+
+    /// <summary>
+    /// Gets the local projection of platform roles for users.
+    /// </summary>
+    public DbSet<UserPlatformRole> UserPlatformRoles => Set<UserPlatformRole>();
+
+    /// <summary>
     /// Applies entity configurations from the API assembly.
     /// </summary>
     /// <param name="modelBuilder">Model builder used to configure the relational model.</param>

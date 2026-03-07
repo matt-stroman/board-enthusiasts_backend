@@ -4,8 +4,8 @@ A backend service for third party developers for the Board ecosystem to use to r
 
 Current implementation status:
 
-- implemented now: health endpoints, Keycloak-backed identity/auth foundation, review-based developer enrollment plus moderator approval, Wave 1 persistence for `users` and `user_board_profiles`, user profile and avatar management endpoints, Wave 2 studios and memberships, and Waves 3 through 5 title/catalog and acquisition persistence
-- planned next: Wave 6 unified commerce and entitlements
+- implemented now: health endpoints, Keycloak-backed identity/auth foundation, self-service developer enrollment plus moderator role management, user profile and avatar management endpoints, Waves 1 through 5 title/catalog/acquisition persistence, Wave 6 access moderation, Wave 7 workspace-shell realignment, and Wave 8 player library, wishlist, title-report, and in-app notification workflows
+- planned next: Wave 9 unified commerce and entitlements
 
 ## Table of Contents
 

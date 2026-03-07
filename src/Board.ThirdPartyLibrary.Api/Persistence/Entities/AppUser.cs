@@ -84,4 +84,39 @@ internal sealed class AppUser
     /// Gets or sets the studio memberships for this user projection.
     /// </summary>
     public ICollection<StudioMembership> StudioMemberships { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the locally projected platform roles for this user.
+    /// </summary>
+    public ICollection<UserPlatformRole> PlatformRoles { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets owned-title library entries for this user.
+    /// </summary>
+    public ICollection<PlayerOwnedTitle> OwnedTitles { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets wishlist entries for this user.
+    /// </summary>
+    public ICollection<PlayerWishlistEntry> WishlistEntries { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets title reports submitted by this user.
+    /// </summary>
+    public ICollection<TitleReport> SubmittedTitleReports { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets report-thread messages authored by this user.
+    /// </summary>
+    public ICollection<TitleReportMessage> TitleReportMessages { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets title reports resolved by this user.
+    /// </summary>
+    public ICollection<TitleReport> ResolvedTitleReports { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets in-app notifications targeted to this user.
+    /// </summary>
+    public ICollection<UserNotification> Notifications { get; set; } = [];
 }

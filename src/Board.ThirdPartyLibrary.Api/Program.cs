@@ -6,8 +6,10 @@ using Board.ThirdPartyLibrary.Api.Auth;
 using Board.ThirdPartyLibrary.Api.HealthChecks;
 using Board.ThirdPartyLibrary.Api.Identity;
 using Board.ThirdPartyLibrary.Api.Moderation;
+using Board.ThirdPartyLibrary.Api.Players;
 using Board.ThirdPartyLibrary.Api.Studios;
 using Board.ThirdPartyLibrary.Api.Persistence;
+using Board.ThirdPartyLibrary.Api.TitleReports;
 using Board.ThirdPartyLibrary.Api.Titles;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -62,10 +64,13 @@ builder.Services.AddDbContext<BoardLibraryDbContext>(options =>
         ? boardLibraryConnectionString
         : "Host=invalid;Port=5432;Database=board_tpl_unconfigured;Username=invalid;Password=invalid"));
 builder.Services.AddScoped<IIdentityPersistenceService, IdentityPersistenceService>();
+builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 builder.Services.AddScoped<IDeveloperEnrollmentService, DeveloperEnrollmentService>();
 builder.Services.AddScoped<IAcquisitionService, AcquisitionService>();
 builder.Services.AddScoped<IStudioService, StudioService>();
 builder.Services.AddScoped<ITitleService, TitleService>();
+builder.Services.AddScoped<IPlayerLibraryService, PlayerLibraryService>();
+builder.Services.AddScoped<ITitleReportService, TitleReportService>();
 builder.Services
     .AddOptions<StudioMediaStorageOptions>()
     .Bind(builder.Configuration.GetSection(StudioMediaStorageOptions.SectionName));
@@ -140,10 +145,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapIdentityEndpoints();
+app.MapPlayerEndpoints();
 app.MapModerationEndpoints();
 app.MapAcquisitionEndpoints();
 app.MapStudioEndpoints();
 app.MapTitleEndpoints();
+app.MapTitleReportEndpoints();
 
 app.Run();
 

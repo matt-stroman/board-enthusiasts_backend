@@ -3,6 +3,7 @@ using System;
 using Board.ThirdPartyLibrary.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
 {
     [DbContext(typeof(BoardLibraryDbContext))]
-    partial class BoardLibraryDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260307171332_Wave8PlayerLibraryAndTitleReports")]
+    partial class Wave8PlayerLibraryAndTitleReports
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -956,12 +959,6 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("Audience")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("audience");
-
                     b.Property<string>("AuthorRole")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -1050,101 +1047,6 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                     b.ToTable("user_board_profiles", null, t =>
                         {
                             t.HasComment("Optional cached linkage between an application user and a Board profile.");
-                        });
-                });
-
-            modelBuilder.Entity("Board.ThirdPartyLibrary.Api.Persistence.Entities.UserNotification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ActionUrl")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
-                        .HasColumnName("action_url");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("body");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("category");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_read");
-
-                    b.Property<DateTime?>("ReadAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("read_at");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("title");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_user_notifications");
-
-                    b.HasIndex("UserId", "CreatedAtUtc")
-                        .HasDatabaseName("ix_user_notifications_user_created_at");
-
-                    b.HasIndex("UserId", "IsRead", "CreatedAtUtc")
-                        .HasDatabaseName("ix_user_notifications_user_is_read_created_at");
-
-                    b.ToTable("user_notifications", null, t =>
-                        {
-                            t.HasComment("Generic in-app notifications targeted to local user projections.");
-                        });
-                });
-
-            modelBuilder.Entity("Board.ThirdPartyLibrary.Api.Persistence.Entities.UserPlatformRole", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("role");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("UserId", "Role")
-                        .HasName("pk_user_platform_roles");
-
-                    b.HasIndex("Role")
-                        .HasDatabaseName("ix_user_platform_roles_role");
-
-                    b.ToTable("user_platform_roles", null, t =>
-                        {
-                            t.HasComment("Local projection of platform roles observed on authenticated user claims.");
                         });
                 });
 
@@ -1413,39 +1315,11 @@ namespace Board.ThirdPartyLibrary.Api.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Board.ThirdPartyLibrary.Api.Persistence.Entities.UserNotification", b =>
-                {
-                    b.HasOne("Board.ThirdPartyLibrary.Api.Persistence.Entities.AppUser", "User")
-                        .WithMany("Notifications")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_notifications_users");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Board.ThirdPartyLibrary.Api.Persistence.Entities.UserPlatformRole", b =>
-                {
-                    b.HasOne("Board.ThirdPartyLibrary.Api.Persistence.Entities.AppUser", "User")
-                        .WithMany("PlatformRoles")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_platform_roles_users");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Board.ThirdPartyLibrary.Api.Persistence.Entities.AppUser", b =>
                 {
                     b.Navigation("BoardProfile");
 
-                    b.Navigation("Notifications");
-
                     b.Navigation("OwnedTitles");
-
-                    b.Navigation("PlatformRoles");
 
                     b.Navigation("ResolvedTitleReports");
 

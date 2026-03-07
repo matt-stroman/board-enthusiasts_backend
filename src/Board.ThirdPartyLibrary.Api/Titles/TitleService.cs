@@ -276,6 +276,7 @@ internal sealed partial class TitleService(
             .Include(candidate => candidate.Studio)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.Reports)
             .Include(candidate => candidate.IntegrationBindings)
                 .ThenInclude(candidate => candidate.IntegrationConnection)
                     .ThenInclude(candidate => candidate.SupportedPublisher)
@@ -318,7 +319,7 @@ internal sealed partial class TitleService(
         var titles = await titleQuery
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(candidate => MapTitle(candidate, includeDescription: false))
+            .Select(candidate => TitleSnapshotMapper.MapTitle(candidate, includeDescription: false))
             .ToListAsync(cancellationToken);
 
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)query.PageSize);
@@ -343,6 +344,7 @@ internal sealed partial class TitleService(
             .Include(candidate => candidate.Studio)
             .Include(candidate => candidate.CurrentMetadataVersion)
             .Include(candidate => candidate.MediaAssets)
+            .Include(candidate => candidate.Reports)
             .Include(candidate => candidate.IntegrationBindings)
                 .ThenInclude(candidate => candidate.IntegrationConnection)
                     .ThenInclude(candidate => candidate.SupportedPublisher)
@@ -359,7 +361,7 @@ internal sealed partial class TitleService(
                      candidate.LifecycleStatus == TitleLifecycleStatuses.Published),
                 cancellationToken);
 
-        return title is null ? null : MapTitle(title, includeDescription: true);
+        return title is null ? null : TitleSnapshotMapper.MapTitle(title, includeDescription: true);
     }
 
     public async Task<TitleListResult> ListStudioTitlesAsync(
@@ -393,7 +395,7 @@ internal sealed partial class TitleService(
                     .ThenInclude(candidate => candidate.SupportedPublisher)
             .Where(candidate => candidate.StudioId == studioId && candidate.CurrentMetadataVersionId != null)
             .OrderBy(candidate => candidate.CurrentMetadataVersion!.DisplayName)
-            .Select(candidate => MapTitle(candidate, includeDescription: false))
+            .Select(candidate => TitleSnapshotMapper.MapTitle(candidate, includeDescription: false))
             .ToListAsync(cancellationToken);
 
         return new TitleListResult(TitleListStatus.Success, titles);
@@ -474,7 +476,7 @@ internal sealed partial class TitleService(
 
         return new TitleMutationResult(
             TitleMutationStatus.Success,
-            MapTitle(title, studio, metadataVersion, includeDescription: true));
+            TitleSnapshotMapper.MapTitle(title, studio, metadataVersion, includeDescription: true));
     }
 
     public async Task<TitleMutationResult> GetTitleAsync(
@@ -487,7 +489,7 @@ internal sealed partial class TitleService(
         {
             TitleAccessStatus.Success => new TitleMutationResult(
                 TitleMutationStatus.Success,
-                MapTitle(title.Title!, includeDescription: true)),
+                TitleSnapshotMapper.MapTitle(title.Title!, includeDescription: true)),
             TitleAccessStatus.NotFound => new TitleMutationResult(TitleMutationStatus.NotFound),
             TitleAccessStatus.Forbidden => new TitleMutationResult(TitleMutationStatus.Forbidden),
             _ => new TitleMutationResult(TitleMutationStatus.NotFound)
@@ -529,7 +531,7 @@ internal sealed partial class TitleService(
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            return new TitleMutationResult(TitleMutationStatus.Success, MapTitle(title, includeDescription: true));
+            return new TitleMutationResult(TitleMutationStatus.Success, TitleSnapshotMapper.MapTitle(title, includeDescription: true));
         }
         catch (DbUpdateException)
         {
@@ -561,7 +563,7 @@ internal sealed partial class TitleService(
             ApplyMetadata(title.CurrentMetadataVersion, command, now);
             title.UpdatedAtUtc = now;
             await dbContext.SaveChangesAsync(cancellationToken);
-            return new TitleMutationResult(TitleMutationStatus.Success, MapTitle(title, includeDescription: true));
+            return new TitleMutationResult(TitleMutationStatus.Success, TitleSnapshotMapper.MapTitle(title, includeDescription: true));
         }
 
         var nextRevision = await dbContext.TitleMetadataVersions
@@ -592,7 +594,7 @@ internal sealed partial class TitleService(
             },
             cancellationToken);
 
-        return new TitleMutationResult(TitleMutationStatus.Success, MapTitle(title, includeDescription: true));
+        return new TitleMutationResult(TitleMutationStatus.Success, TitleSnapshotMapper.MapTitle(title, includeDescription: true));
     }
 
     public async Task<TitleMetadataVersionListResult> ListMetadataVersionsAsync(
@@ -668,7 +670,7 @@ internal sealed partial class TitleService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new TitleMutationResult(TitleMutationStatus.Success, MapTitle(title, includeDescription: true));
+        return new TitleMutationResult(TitleMutationStatus.Success, TitleSnapshotMapper.MapTitle(title, includeDescription: true));
     }
 
     private async Task<TitleAccessResult> LoadManagedTitleAsync(
@@ -733,83 +735,6 @@ internal sealed partial class TitleService(
         metadataVersion.AgeRatingValue = command.AgeRatingValue;
         metadataVersion.MinAgeYears = command.MinAgeYears;
         metadataVersion.UpdatedAtUtc = now;
-    }
-
-    private static TitleSnapshot MapTitle(Title title, bool includeDescription) =>
-        MapTitle(title, title.Studio, title.CurrentMetadataVersion!, includeDescription);
-
-    private static TitleSnapshot MapTitle(
-        Title title,
-        Studio studio,
-        TitleMetadataVersion metadataVersion,
-        bool includeDescription) =>
-        CreateTitleSnapshot(title, studio, metadataVersion, includeDescription);
-
-    private static TitleSnapshot CreateTitleSnapshot(
-        Title title,
-        Studio studio,
-        TitleMetadataVersion metadataVersion,
-        bool includeDescription)
-    {
-        var acquisitionBinding = title.IntegrationBindings
-            .Where(candidate => candidate.IsEnabled && candidate.IsPrimary && candidate.IntegrationConnection.IsEnabled)
-            .OrderBy(candidate => candidate.CreatedAtUtc)
-            .FirstOrDefault();
-
-        return new TitleSnapshot(
-            title.Id,
-            title.StudioId,
-            studio.Slug,
-            title.Slug,
-            title.ContentKind,
-            title.LifecycleStatus,
-            title.Visibility,
-            metadataVersion.RevisionNumber,
-            metadataVersion.DisplayName,
-            metadataVersion.ShortDescription,
-            includeDescription ? metadataVersion.Description : null,
-            metadataVersion.GenreDisplay,
-            metadataVersion.MinPlayers,
-            metadataVersion.MaxPlayers,
-            metadataVersion.AgeRatingAuthority,
-            metadataVersion.AgeRatingValue,
-            metadataVersion.MinAgeYears,
-            title.CurrentReleaseId,
-            title.MediaAssets
-                .SingleOrDefault(candidate => candidate.MediaRole == TitleMediaRoles.Card)
-                ?.SourceUrl,
-            acquisitionBinding?.AcquisitionUrl,
-            title.MediaAssets
-                .OrderBy(candidate => candidate.MediaRole)
-                .Select(MapMediaAsset)
-                .ToArray(),
-            MapCurrentRelease(title.CurrentRelease),
-            MapPublicTitleAcquisition(acquisitionBinding),
-            includeDescription ? title.CreatedAtUtc : null,
-            includeDescription ? title.UpdatedAtUtc : null);
-    }
-
-    private static PublicTitleAcquisitionSnapshot? MapPublicTitleAcquisition(TitleIntegrationBinding? binding)
-    {
-        if (binding is null)
-        {
-            return null;
-        }
-
-        var providerDisplayName = binding.IntegrationConnection.SupportedPublisher?.DisplayName
-            ?? binding.IntegrationConnection.CustomPublisherDisplayName;
-
-        if (string.IsNullOrWhiteSpace(providerDisplayName))
-        {
-            return null;
-        }
-
-        return new PublicTitleAcquisitionSnapshot(
-            binding.AcquisitionUrl,
-            binding.AcquisitionLabel,
-            providerDisplayName,
-            binding.IntegrationConnection.SupportedPublisher?.HomepageUrl
-                ?? binding.IntegrationConnection.CustomPublisherHomepageUrl);
     }
 
     private static string GetRequiredSubject(IEnumerable<Claim> claims)
@@ -926,6 +851,7 @@ internal sealed record PublicCatalogListQuery(
 /// <param name="AgeRatingAuthority">Age rating authority such as ESRB or PEGI.</param>
 /// <param name="AgeRatingValue">Authority-specific age rating value.</param>
 /// <param name="MinAgeYears">Minimum recommended player age.</param>
+/// <param name="IsReported">Whether the title currently has an active moderation report.</param>
 /// <param name="CurrentReleaseId">Currently active release identifier when present.</param>
 /// <param name="CardImageUrl">Card/list image URL when configured.</param>
 /// <param name="AcquisitionUrl">Primary acquisition URL when an active binding exists.</param>
@@ -942,6 +868,7 @@ internal sealed record TitleSnapshot(
     string ContentKind,
     string LifecycleStatus,
     string Visibility,
+    bool IsReported,
     int CurrentMetadataRevision,
     string DisplayName,
     string ShortDescription,

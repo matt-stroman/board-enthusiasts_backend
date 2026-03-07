@@ -89,4 +89,19 @@ internal sealed class Title
     /// Gets or sets all external acquisition bindings associated with the title.
     /// </summary>
     public ICollection<TitleIntegrationBinding> IntegrationBindings { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets all owned-library entries associated with the title.
+    /// </summary>
+    public ICollection<PlayerOwnedTitle> OwnedByUsers { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets all wishlist entries associated with the title.
+    /// </summary>
+    public ICollection<PlayerWishlistEntry> WishlistedByUsers { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets moderation reports associated with the title.
+    /// </summary>
+    public ICollection<TitleReport> Reports { get; set; } = [];
 }

@@ -251,6 +251,7 @@ internal sealed class IdentityPersistenceService(
         var claimList = claims.ToList();
         var snapshot = BuildSnapshot(claimList);
         var user = await dbContext.Users
+            .Include(candidate => candidate.PlatformRoles)
             .SingleOrDefaultAsync(candidate => candidate.KeycloakSubject == snapshot.Subject, cancellationToken);
 
         if (user is null)
@@ -284,6 +285,7 @@ internal sealed class IdentityPersistenceService(
             user.UpdatedAtUtc = DateTime.UtcNow;
         }
 
+        SyncPlatformRoles(user, claimList);
         await dbContext.SaveChangesAsync(cancellationToken);
         await EnsurePlayerRoleAssignmentAsync(snapshot.Subject, claimList, cancellationToken);
         return user;
@@ -336,6 +338,37 @@ internal sealed class IdentityPersistenceService(
         claims.Any(claim =>
             claim.Type == ClaimTypes.Role &&
             string.Equals(claim.Value, roleName, StringComparison.OrdinalIgnoreCase));
+
+    private static void SyncPlatformRoles(AppUser user, IReadOnlyCollection<Claim> claims)
+    {
+        var now = DateTime.UtcNow;
+        var observedRoles = claims
+            .Where(claim => claim.Type == ClaimTypes.Role && !string.IsNullOrWhiteSpace(claim.Value))
+            .Select(claim => claim.Value.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var existingRole in user.PlatformRoles.Where(candidate => !observedRoles.Contains(candidate.Role)).ToArray())
+        {
+            user.PlatformRoles.Remove(existingRole);
+        }
+
+        foreach (var existingRole in user.PlatformRoles)
+        {
+            existingRole.UpdatedAtUtc = now;
+        }
+
+        foreach (var role in observedRoles.Where(role => user.PlatformRoles.All(candidate => !string.Equals(candidate.Role, role, StringComparison.Ordinal))))
+        {
+            user.PlatformRoles.Add(new UserPlatformRole
+            {
+                UserId = user.Id,
+                Role = role,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+    }
 
     private static BoardProfileSnapshot MapSnapshot(UserBoardProfile profile) =>
         new(

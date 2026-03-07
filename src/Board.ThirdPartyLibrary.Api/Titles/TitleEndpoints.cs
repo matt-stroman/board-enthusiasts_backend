@@ -406,6 +406,7 @@ internal static partial class TitleEndpoints
             title.ContentKind,
             title.LifecycleStatus,
             title.Visibility,
+            title.IsReported,
             title.CurrentMetadataRevision,
             title.DisplayName,
             title.ShortDescription,
@@ -429,6 +430,7 @@ internal static partial class TitleEndpoints
             title.ContentKind,
             title.LifecycleStatus,
             title.Visibility,
+            title.IsReported,
             title.CurrentMetadataRevision,
             title.DisplayName,
             title.ShortDescription,
@@ -642,6 +644,7 @@ internal sealed record UpsertTitleMetadataRequest(
 /// <param name="ContentKind">Content kind such as game or app.</param>
 /// <param name="LifecycleStatus">Lifecycle status for the title.</param>
 /// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="IsReported">Whether the title currently has an active moderation report.</param>
 /// <param name="CurrentMetadataRevision">Currently active metadata revision number.</param>
 /// <param name="DisplayName">Public display name.</param>
 /// <param name="ShortDescription">Short public description.</param>
@@ -663,6 +666,7 @@ internal sealed record CatalogTitleSummaryDto(
     string ContentKind,
     string LifecycleStatus,
     string Visibility,
+    bool IsReported,
     int CurrentMetadataRevision,
     string DisplayName,
     string ShortDescription,
@@ -687,6 +691,7 @@ internal sealed record CatalogTitleSummaryDto(
 /// <param name="ContentKind">Content kind such as game or app.</param>
 /// <param name="LifecycleStatus">Lifecycle status for the title.</param>
 /// <param name="Visibility">Visibility mode for the title.</param>
+/// <param name="IsReported">Whether the title currently has an active moderation report.</param>
 /// <param name="CurrentMetadataRevision">Currently active metadata revision number.</param>
 /// <param name="DisplayName">Public display name.</param>
 /// <param name="ShortDescription">Short public description.</param>
@@ -714,6 +719,7 @@ internal sealed record CatalogTitleDto(
     string ContentKind,
     string LifecycleStatus,
     string Visibility,
+    bool IsReported,
     int CurrentMetadataRevision,
     string DisplayName,
     string ShortDescription,

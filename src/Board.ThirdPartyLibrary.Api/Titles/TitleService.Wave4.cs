@@ -378,7 +378,7 @@ internal sealed partial class TitleService
         release.UpdatedAtUtc = now;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new TitleMutationResult(TitleMutationStatus.Success, MapTitle(title, includeDescription: true));
+        return new TitleMutationResult(TitleMutationStatus.Success, TitleSnapshotMapper.MapTitle(title, includeDescription: true));
     }
 
     public async Task<TitleReleaseMutationResult> WithdrawReleaseAsync(
