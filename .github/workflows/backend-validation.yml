@@ -32,16 +32,18 @@ jobs:
         id: root_ref
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            if [ "${{ github.base_ref }}" = "main" ]; then
+            if [ "${{ github.base_ref }}" = "main" ] && { [ "${{ github.head_ref }}" = "feat/cloudflare-supabase-workers-stack-audit" ] || [ "${{ github.head_ref }}" = "feat/cloudflare-supabase-workers-stack-audit-wave-wrapup" ]; }; then
+              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
+            elif [ "${{ github.base_ref }}" = "main" ]; then
               echo "root_ref=main" >> "$GITHUB_OUTPUT"
             else
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion-wave-3-frontend-cutover" >> "$GITHUB_OUTPUT"
+              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
             fi
           else
             if [ "${{ github.ref_name }}" = "main" ]; then
               echo "root_ref=main" >> "$GITHUB_OUTPUT"
             else
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion-wave-3-frontend-cutover" >> "$GITHUB_OUTPUT"
+              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
             fi
           fi
 
