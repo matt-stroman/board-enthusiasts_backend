@@ -35,13 +35,13 @@ jobs:
             if [ "${{ github.base_ref }}" = "main" ]; then
               echo "root_ref=main" >> "$GITHUB_OUTPUT"
             else
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
+              echo "root_ref=feat/cloudflare-supabase-workers-conversion-wave-3-frontend-cutover" >> "$GITHUB_OUTPUT"
             fi
           else
             if [ "${{ github.ref_name }}" = "main" ]; then
               echo "root_ref=main" >> "$GITHUB_OUTPUT"
             else
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
+              echo "root_ref=feat/cloudflare-supabase-workers-conversion-wave-3-frontend-cutover" >> "$GITHUB_OUTPUT"
             fi
           fi
 
