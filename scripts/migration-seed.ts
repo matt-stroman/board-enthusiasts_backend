@@ -3,7 +3,8 @@ import path from "node:path";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
-  migrationMediaBucket,
+  migrationMediaBuckets,
+  migrationMediaUploadPolicies,
   migrationSeedStudios,
   migrationSeedTitles,
   migrationSeedUsers
@@ -14,7 +15,10 @@ interface SeedOptions {
   secretKey: string;
   password: string;
   assetRoot: string;
-  bucket: string;
+  avatarsBucket: string;
+  cardImagesBucket: string;
+  heroImagesBucket: string;
+  logoImagesBucket: string;
 }
 
 interface ParsedArgs {
@@ -82,7 +86,10 @@ function buildOptions(argv: string[]): SeedOptions {
     secretKey: requireArg(args, "secret-key"),
     password: requireArg(args, "password"),
     assetRoot: requireArg(args, "asset-root"),
-    bucket: (args["bucket"] ?? migrationMediaBucket).trim() || migrationMediaBucket
+    avatarsBucket: (args["avatars-bucket"] ?? migrationMediaBuckets.avatars).trim() || migrationMediaBuckets.avatars,
+    cardImagesBucket: (args["card-images-bucket"] ?? migrationMediaBuckets.cardImages).trim() || migrationMediaBuckets.cardImages,
+    heroImagesBucket: (args["hero-images-bucket"] ?? migrationMediaBuckets.heroImages).trim() || migrationMediaBuckets.heroImages,
+    logoImagesBucket: (args["logo-images-bucket"] ?? migrationMediaBuckets.logoImages).trim() || migrationMediaBuckets.logoImages
   };
 }
 
@@ -139,7 +146,18 @@ function parseMimeType(filePath: string, fallback: string): string {
   return fallback;
 }
 
-async function ensureBucket(client: SupabaseClient, bucket: string): Promise<void> {
+function formatBucketFileSizeLimit(maxUploadBytes: number): string {
+  if (maxUploadBytes % (1024 * 1024) === 0) {
+    return `${maxUploadBytes / (1024 * 1024)}MB`;
+  }
+  return `${Math.round(maxUploadBytes / 1024)}KB`;
+}
+
+async function ensureBucket(
+  client: SupabaseClient,
+  bucket: string,
+  options: { maxUploadBytes: number; acceptedMimeTypes: readonly string[] }
+): Promise<void> {
   const { data, error } = await client.storage.listBuckets();
   if (error) {
     throw error;
@@ -148,16 +166,16 @@ async function ensureBucket(client: SupabaseClient, bucket: string): Promise<voi
   if (data.some((candidate) => candidate.name === bucket)) {
     await client.storage.updateBucket(bucket, {
       public: true,
-      fileSizeLimit: "25MB",
-      allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
+      fileSizeLimit: formatBucketFileSizeLimit(options.maxUploadBytes),
+      allowedMimeTypes: [...options.acceptedMimeTypes]
     });
     return;
   }
 
   const { error: createError } = await client.storage.createBucket(bucket, {
     public: true,
-    fileSizeLimit: "25MB",
-    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
+    fileSizeLimit: formatBucketFileSizeLimit(options.maxUploadBytes),
+    allowedMimeTypes: [...options.acceptedMimeTypes]
   });
   if (createError) {
     throw createError;
@@ -246,6 +264,21 @@ async function uploadAsset(
   };
 }
 
+function getTitleMediaBucket(options: SeedOptions, mediaRole: "card" | "hero" | "logo"): string {
+  switch (mediaRole) {
+    case "card":
+      return options.cardImagesBucket;
+    case "hero":
+      return options.heroImagesBucket;
+    case "logo":
+      return options.logoImagesBucket;
+  }
+}
+
+function bucketSupportsMimeType(bucketPolicy: { acceptedMimeTypes: readonly string[] }, mimeType: string): boolean {
+  return bucketPolicy.acceptedMimeTypes.includes(mimeType);
+}
+
 async function ensureAuthUsers(client: SupabaseClient, password: string): Promise<Map<string, AuthUserRecord>> {
   const { data, error } = await client.auth.admin.listUsers();
   if (error) {
@@ -315,8 +348,11 @@ async function seedOnce(options: SeedOptions): Promise<void> {
   console.log("==> Waiting for Supabase APIs to become ready");
   await waitForSupabaseReady(client);
 
-  console.log("==> Ensuring Supabase media bucket exists");
-  await ensureBucket(client, options.bucket);
+  console.log("==> Ensuring Supabase media buckets exist");
+  await ensureBucket(client, options.avatarsBucket, migrationMediaUploadPolicies.avatars);
+  await ensureBucket(client, options.cardImagesBucket, migrationMediaUploadPolicies.cardImages);
+  await ensureBucket(client, options.heroImagesBucket, migrationMediaUploadPolicies.heroImages);
+  await ensureBucket(client, options.logoImagesBucket, migrationMediaUploadPolicies.logoImages);
 
   console.log("==> Creating or updating deterministic Supabase auth users");
   const authUsers = await ensureAuthUsers(client, options.password);
@@ -397,7 +433,7 @@ async function seedOnce(options: SeedOptions): Promise<void> {
 
     const uploadedLogo = await uploadAsset(
       client,
-      options.bucket,
+      options.logoImagesBucket,
       options.assetRoot,
       studio.logoAssetPath,
       `studios/${studio.slug}/logo${path.extname(studio.logoAssetPath).toLowerCase()}`,
@@ -405,27 +441,33 @@ async function seedOnce(options: SeedOptions): Promise<void> {
     );
     const uploadedBanner = await uploadAsset(
       client,
-      options.bucket,
+      options.heroImagesBucket,
       options.assetRoot,
       studio.bannerAssetPath,
       `studios/${studio.slug}/banner${path.extname(studio.bannerAssetPath).toLowerCase()}`,
       "image/svg+xml"
     );
-    const uploadedAvatar = await uploadAsset(
-      client,
-      options.bucket,
-      options.assetRoot,
-      studio.avatarAssetPath,
-      `studios/${studio.slug}/avatar${path.extname(studio.avatarAssetPath).toLowerCase()}`,
-      "image/svg+xml"
-    );
+    const studioAvatarMimeType = parseMimeType(studio.avatarAssetPath, "image/png");
+    const studioAvatarStoragePath = `studios/${studio.slug}/avatar${path.extname(studio.avatarAssetPath).toLowerCase()}`;
+    const uploadedAvatar = bucketSupportsMimeType(migrationMediaUploadPolicies.avatars, studioAvatarMimeType)
+      ? await uploadAsset(
+          client,
+          options.avatarsBucket,
+          options.assetRoot,
+          studio.avatarAssetPath,
+          studioAvatarStoragePath,
+          studioAvatarMimeType
+        )
+      : null;
 
     studioRows.push({
       slug: studio.slug,
       display_name: studio.displayName,
       description: studio.description,
-      avatar_url: uploadedAvatar.publicUrl,
-      avatar_storage_path: uploadedAvatar.storagePath,
+      // Seed catalog studio avatars fall back to the uploaded logo when the source art is
+      // vector-only and the avatar bucket policy intentionally rejects SVG uploads.
+      avatar_url: uploadedAvatar?.publicUrl ?? uploadedLogo.publicUrl,
+      avatar_storage_path: uploadedAvatar?.storagePath ?? null,
       logo_url: uploadedLogo.publicUrl,
       logo_storage_path: uploadedLogo.storagePath,
       banner_url: uploadedBanner.publicUrl,
@@ -487,7 +529,7 @@ async function seedOnce(options: SeedOptions): Promise<void> {
     for (const media of title.media) {
       const uploaded = await uploadAsset(
         client,
-        options.bucket,
+        getTitleMediaBucket(options, media.role),
         options.assetRoot,
         media.assetPath,
         `titles/${title.studioSlug}/${title.slug}/${media.role}${path.extname(media.assetPath).toLowerCase()}`,
@@ -797,7 +839,10 @@ async function seedOnce(options: SeedOptions): Promise<void> {
   console.log(`Seeded users use password: ${options.password}`);
   console.log(`Moderator account: alex.rivera (${migrationSeedUsers[0]?.email ?? ""})`);
   console.log(`Developer account: emma.torres (${migrationSeedUsers[1]?.email ?? ""})`);
-  console.log(`Media bucket: ${options.bucket}`);
+  console.log(`Avatars bucket: ${options.avatarsBucket}`);
+  console.log(`Card images bucket: ${options.cardImagesBucket}`);
+  console.log(`Hero images bucket: ${options.heroImagesBucket}`);
+  console.log(`Logo images bucket: ${options.logoImagesBucket}`);
   console.log(`Seeded application users: ${appUsersByAuthId.size}`);
 }
 

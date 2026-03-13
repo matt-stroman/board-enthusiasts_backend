@@ -68,10 +68,12 @@ jobs:
         id: root_ref
         env:
           INPUT_ROOT_REF: ${{ github.event.inputs.root_ref || '' }}
+          GITHUB_HEAD_REF: ${{ github.head_ref || '' }}
         run: |
           python3 - <<'PY'
           import json
           import os
+          import subprocess
           from pathlib import Path
 
           root_ref = (os.environ.get("INPUT_ROOT_REF") or "").strip()
@@ -89,6 +91,25 @@ jobs:
                       root_ref = candidate
                       reason = f"pull request label {name}"
                       break
+
+          if not root_ref:
+              head_ref = (os.environ.get("GITHUB_HEAD_REF") or "").strip()
+              if head_ref:
+                  result = subprocess.run(
+                      [
+                          "git",
+                          "ls-remote",
+                          "--exit-code",
+                          "--heads",
+                          "https://github.com/matt-stroman/board-enthusiasts.git",
+                          head_ref
+                      ],
+                      capture_output=True,
+                      text=True
+                  )
+                  if result.returncode == 0:
+                      root_ref = head_ref
+                      reason = f"matching root branch {head_ref}"
 
           if not root_ref:
               root_ref = "main"
@@ -146,7 +167,10 @@ jobs:
           SUPABASE_URL: https://example-project.supabase.co
           SUPABASE_PUBLISHABLE_KEY: ci-dry-run-publishable-key
           SUPABASE_SECRET_KEY: ci-dry-run-secret-key
-          SUPABASE_MEDIA_BUCKET: catalog-media
+          SUPABASE_AVATARS_BUCKET: avatars
+          SUPABASE_CARD_IMAGES_BUCKET: card-images
+          SUPABASE_HERO_IMAGES_BUCKET: hero-images
+          SUPABASE_LOGO_IMAGES_BUCKET: logo-images
           TURNSTILE_SECRET_KEY: ci-dry-run-turnstile-secret-key
           BREVO_API_KEY: ci-dry-run-brevo-api-key
           BREVO_SIGNUPS_LIST_ID: 1

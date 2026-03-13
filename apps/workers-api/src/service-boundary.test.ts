@@ -242,3 +242,41 @@ describe("WorkerAppService.createMarketingSignup", () => {
     );
   });
 });
+
+describe("WorkerAppService.getContext", () => {
+  it("defaults the typed storage buckets when they are not explicitly configured", () => {
+    const service = new WorkerAppService({
+      APP_ENV: "local",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "publishable-key",
+      SUPABASE_SECRET_KEY: "secret-key",
+    });
+
+    expect(service.getContext()).toMatchObject({
+      supabaseAvatarsBucket: "avatars",
+      supabaseCardImagesBucket: "card-images",
+      supabaseHeroImagesBucket: "hero-images",
+      supabaseLogoImagesBucket: "logo-images",
+    });
+  });
+
+  it("respects explicit typed storage bucket overrides", () => {
+    const service = new WorkerAppService({
+      APP_ENV: "staging",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "publishable-key",
+      SUPABASE_SECRET_KEY: "secret-key",
+      SUPABASE_AVATARS_BUCKET: "custom-avatars",
+      SUPABASE_CARD_IMAGES_BUCKET: "custom-card-images",
+      SUPABASE_HERO_IMAGES_BUCKET: "custom-hero-images",
+      SUPABASE_LOGO_IMAGES_BUCKET: "custom-logo-images",
+    });
+
+    expect(service.getContext()).toMatchObject({
+      supabaseAvatarsBucket: "custom-avatars",
+      supabaseCardImagesBucket: "custom-card-images",
+      supabaseHeroImagesBucket: "custom-hero-images",
+      supabaseLogoImagesBucket: "custom-logo-images",
+    });
+  });
+});

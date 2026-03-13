@@ -264,7 +264,10 @@ describe("WorkerAppService studio avatar support", () => {
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_PUBLISHABLE_KEY: "publishable-key",
       SUPABASE_SECRET_KEY: "secret-key",
-      SUPABASE_MEDIA_BUCKET: "catalog-media",
+      SUPABASE_AVATARS_BUCKET: "avatars",
+      SUPABASE_CARD_IMAGES_BUCKET: "card-images",
+      SUPABASE_HERO_IMAGES_BUCKET: "hero-images",
+      SUPABASE_LOGO_IMAGES_BUCKET: "logo-images",
     });
 
     const created = await service.createStudio("developer-token", {
@@ -297,7 +300,10 @@ describe("WorkerAppService studio avatar support", () => {
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_PUBLISHABLE_KEY: "publishable-key",
       SUPABASE_SECRET_KEY: "secret-key",
-      SUPABASE_MEDIA_BUCKET: "catalog-media",
+      SUPABASE_AVATARS_BUCKET: "avatars",
+      SUPABASE_CARD_IMAGES_BUCKET: "card-images",
+      SUPABASE_HERO_IMAGES_BUCKET: "hero-images",
+      SUPABASE_LOGO_IMAGES_BUCKET: "logo-images",
     });
 
     const response = await service.uploadStudioMedia(
@@ -309,12 +315,12 @@ describe("WorkerAppService studio avatar support", () => {
 
     expect(storageUploads).toEqual([
       expect.objectContaining({
-        bucket: "catalog-media",
+        bucket: "avatars",
         path: "studios/blue-harbor-games/avatar.png",
         contentType: "image/png",
       }),
     ]);
-    expect(response.studio.avatarUrl).toBe("https://storage.example/catalog-media/studios/blue-harbor-games/avatar.png");
+    expect(response.studio.avatarUrl).toBe("https://storage.example/avatars/studios/blue-harbor-games/avatar.png");
     expect(tables.studios.find((studio) => studio.id === "studio-1")?.avatar_storage_path).toBe("studios/blue-harbor-games/avatar.png");
   });
 });
