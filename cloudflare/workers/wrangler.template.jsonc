@@ -5,17 +5,17 @@
   "compatibility_date": "2025-03-01",
   "vars": {
     "APP_ENV": "staging",
-    "SUPABASE_URL": "https://<project-ref>.supabase.co",
-    "SUPABASE_ANON_KEY": "env(SUPABASE_ANON_KEY)",
-    "SUPABASE_MEDIA_BUCKET": "catalog-media",
-    "ALLOWED_WEB_ORIGINS": "http://localhost:5173,https://boardenthusiasts.com,https://www.boardenthusiasts.com,https://staging.boardenthusiasts.com",
-    "BREVO_SIGNUPS_LIST_ID": "<brevo-signups-list-id>",
-    "SUPPORT_REPORT_RECIPIENT": "support@boardenthusiasts.com",
-    "SUPPORT_REPORT_SENDER_EMAIL": "noreply@boardenthusiasts.com",
-    "SUPPORT_REPORT_SENDER_NAME": "Board Enthusiasts"
+    "SUPABASE_URL": "env(SUPABASE_URL)",
+    "SUPABASE_PUBLISHABLE_KEY": "env(SUPABASE_PUBLISHABLE_KEY)",
+    "SUPABASE_MEDIA_BUCKET": "env(SUPABASE_MEDIA_BUCKET)",
+    "ALLOWED_WEB_ORIGINS": "env(ALLOWED_WEB_ORIGINS)",
+    "BREVO_SIGNUPS_LIST_ID": "env(BREVO_SIGNUPS_LIST_ID)",
+    "SUPPORT_REPORT_RECIPIENT": "env(SUPPORT_REPORT_RECIPIENT)",
+    "SUPPORT_REPORT_SENDER_EMAIL": "env(SUPPORT_REPORT_SENDER_EMAIL)",
+    "SUPPORT_REPORT_SENDER_NAME": "env(SUPPORT_REPORT_SENDER_NAME)"
   },
-  // Provision the service role key out of band:
-  //   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+  // Provision the Supabase secret key out of band:
+  //   wrangler secret put SUPABASE_SECRET_KEY
   //   wrangler secret put TURNSTILE_SECRET_KEY
   //   wrangler secret put BREVO_API_KEY
   "observability": {
