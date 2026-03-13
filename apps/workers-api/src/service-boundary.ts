@@ -134,6 +134,8 @@ type StudioRow = {
   slug: string;
   display_name: string;
   description: string | null;
+  avatar_url: string | null;
+  avatar_storage_path: string | null;
   logo_url: string | null;
   logo_storage_path: string | null;
   banner_url: string | null;
@@ -323,6 +325,7 @@ const roleOrder: PlatformRole[] = ["player", "developer", "verified_developer", 
 const marketingRoleInterestOrder: MarketingContactRoleInterest[] = ["developer", "player"];
 const acceptedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
 const maxUploadBytes = 25 * 1024 * 1024;
+const avatarUploadMaxBytes = 256 * 1024;
 
 function sortRoles(roles: PlatformRole[]): PlatformRole[] {
   return [...roles].sort((left, right) => roleOrder.indexOf(left) - roleOrder.indexOf(right));
@@ -710,6 +713,7 @@ interface StudioMutationRequest {
   slug: string;
   displayName: string;
   description?: string | null;
+  avatarUrl?: string | null;
   logoUrl?: string | null;
   bannerUrl?: string | null;
 }
@@ -1692,6 +1696,7 @@ export class WorkerAppService {
         slug: input.slug,
         display_name: input.displayName,
         description: input.description ?? null,
+        avatar_url: input.avatarUrl ?? null,
         logo_url: input.logoUrl ?? null,
         banner_url: input.bannerUrl ?? null,
         created_by_user_id: user.appUser.id,
@@ -1738,6 +1743,7 @@ export class WorkerAppService {
         slug: input.slug,
         display_name: input.displayName,
         description: input.description ?? null,
+        avatar_url: input.avatarUrl ?? null,
         logo_url: input.logoUrl ?? null,
         banner_url: input.bannerUrl ?? null,
         updated_at: new Date().toISOString()
@@ -1835,11 +1841,11 @@ export class WorkerAppService {
     }
   }
 
-  async uploadStudioMedia(token: string, studioId: string, kind: "logo" | "banner", file: File | null): Promise<StudioResponse> {
+  async uploadStudioMedia(token: string, studioId: string, kind: "avatar" | "logo" | "banner", file: File | null): Promise<StudioResponse> {
     const user = await this.requireUser(token);
     const studio = await this.getStudioById(studioId);
     await this.requireStudioAccess(user.appUser.id, studio.id);
-    const validatedFile = this.requireUploadFile(file);
+    const validatedFile = this.requireUploadFile(file, kind === "avatar" ? avatarUploadMaxBytes : maxUploadBytes);
 
     const extension = this.extensionForMimeType(validatedFile.type);
     const storagePath = `studios/${studio.slug}/${kind}${extension}`;
@@ -1852,7 +1858,13 @@ export class WorkerAppService {
 
     const publicUrl = this.client.storage.from(this.context.supabaseMediaBucket).getPublicUrl(storagePath).data.publicUrl;
     const updatePayload =
-      kind === "logo"
+      kind === "avatar"
+        ? {
+            avatar_url: publicUrl,
+            avatar_storage_path: storagePath,
+            updated_at: new Date().toISOString()
+          }
+        : kind === "logo"
         ? {
             logo_url: publicUrl,
             logo_storage_path: storagePath,
@@ -2842,6 +2854,9 @@ export class WorkerAppService {
     if (input.bannerUrl && !isAbsoluteUrl(input.bannerUrl)) {
       errors.bannerUrl = ["Banner URL must be an absolute URI."];
     }
+    if (input.avatarUrl && !isAbsoluteUrl(input.avatarUrl)) {
+      errors.avatarUrl = ["Avatar URL must be an absolute URI."];
+    }
 
     if (Object.keys(errors).length > 0) {
       throw validationProblem(errors);
@@ -2862,7 +2877,7 @@ export class WorkerAppService {
     }
   }
 
-  private requireUploadFile(file: File | null): File {
+  private requireUploadFile(file: File | null, uploadLimitBytes = maxUploadBytes): File {
     if (!file) {
       throw validationProblem({
         media: ["A media file is required."]
@@ -2873,9 +2888,9 @@ export class WorkerAppService {
         media: ["Media image format must be JPEG, PNG, WEBP, GIF, or SVG."]
       });
     }
-    if (file.size > maxUploadBytes) {
+    if (file.size > uploadLimitBytes) {
       throw validationProblem({
-        media: ["Media image size must be 25 MB or less."]
+        media: [uploadLimitBytes === avatarUploadMaxBytes ? "Uploaded avatar must be 256 KB or smaller." : "Media image size must be 25 MB or less."]
       });
     }
 
@@ -3485,6 +3500,7 @@ export class WorkerAppService {
       slug: studio.slug,
       displayName: studio.display_name,
       description: studio.description,
+      avatarUrl: studio.avatar_url,
       logoUrl: studio.logo_url,
       bannerUrl: studio.banner_url,
       links: links.map(mapStudioLink),
