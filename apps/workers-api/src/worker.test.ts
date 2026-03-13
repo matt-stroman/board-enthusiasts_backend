@@ -14,6 +14,8 @@ describe("handleMarketingSignupRoute", () => {
           email: "matt@example.com",
           firstName: "Matt",
           status: "subscribed",
+          lifecycleStatus: "waitlisted",
+          roleInterests: ["player"],
           source: "landing_page",
           consentedAt: "2026-03-12T18:00:00Z",
           updatedAt: "2026-03-12T18:00:00Z",
@@ -31,6 +33,7 @@ describe("handleMarketingSignupRoute", () => {
           source: "landing_page",
           consentTextVersion: "landing-page-v1",
           turnstileToken: "token-123",
+          roleInterests: ["player"],
         }),
       }),
       service as never,
@@ -44,6 +47,7 @@ describe("handleMarketingSignupRoute", () => {
       source: "landing_page",
       consentTextVersion: "landing-page-v1",
       turnstileToken: "token-123",
+      roleInterests: ["player"],
     });
   });
 

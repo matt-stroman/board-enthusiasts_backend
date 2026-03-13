@@ -2,6 +2,8 @@ import { createClient, type SupabaseClient, type User as SupabaseAuthUser } from
 import {
   type AddModerationTitleReportMessageRequest,
   type AddTitleReportMessageRequest,
+  type MarketingContactLifecycleStatus,
+  type MarketingContactRoleInterest,
   type MarketingContactStatus,
   type MarketingSignupRequest,
   type MarketingSignupResponse,
@@ -98,6 +100,7 @@ type MarketingContactRow = {
   normalized_email: string;
   first_name: string | null;
   status: MarketingContactStatus;
+  lifecycle_status: MarketingContactLifecycleStatus;
   consented_at: string;
   consent_text_version: string;
   source: string;
@@ -113,6 +116,17 @@ type MarketingContactRow = {
   converted_app_user_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type MarketingContactRoleInterestRow = {
+  marketing_contact_id: string;
+  role: MarketingContactRoleInterest;
+  created_at: string;
+};
+
+type MarketingContactRecord = {
+  contact: MarketingContactRow;
+  roleInterests: MarketingContactRoleInterest[];
 };
 
 type StudioRow = {
@@ -306,6 +320,7 @@ type WaveStateRow = {
 };
 
 const roleOrder: PlatformRole[] = ["player", "developer", "verified_developer", "moderator", "admin", "super_admin"];
+const marketingRoleInterestOrder: MarketingContactRoleInterest[] = ["developer", "player"];
 const acceptedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
 const maxUploadBytes = 25 * 1024 * 1024;
 
@@ -366,6 +381,21 @@ function trimNullableString(value: string | null | undefined, maxLength: number)
 
 function isValidMarketingSource(value: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
+}
+
+function sanitizeMarketingRoleInterests(value: MarketingSignupRequest["roleInterests"]): MarketingContactRoleInterest[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const unique = new Set<MarketingContactRoleInterest>();
+  for (const candidate of value) {
+    if (candidate === "player" || candidate === "developer") {
+      unique.add(candidate);
+    }
+  }
+
+  return marketingRoleInterestOrder.filter((role) => unique.has(role));
 }
 
 function validateStudioSlug(slug: string): boolean {
@@ -600,14 +630,16 @@ function mapUserNotification(row: UserNotificationRow): UserNotification {
   };
 }
 
-function mapMarketingSignup(row: MarketingContactRow): MarketingSignupResponse["signup"] {
+function mapMarketingSignup(record: MarketingContactRecord): MarketingSignupResponse["signup"] {
   return {
-    email: row.email,
-    firstName: row.first_name,
-    status: row.status,
-    source: row.source,
-    consentedAt: row.consented_at,
-    updatedAt: row.updated_at
+    email: record.contact.email,
+    firstName: record.contact.first_name,
+    status: record.contact.status,
+    lifecycleStatus: record.contact.lifecycle_status,
+    roleInterests: record.roleInterests,
+    source: record.contact.source,
+    consentedAt: record.contact.consented_at,
+    updatedAt: record.contact.updated_at
   };
 }
 
@@ -817,6 +849,7 @@ export class WorkerAppService {
     const email = input.email.trim();
     const normalizedEmail = normalizeEmailAddress(email);
     const firstName = trimNullableString(input.firstName, 100);
+    const roleInterests = sanitizeMarketingRoleInterests(input.roleInterests);
     const source = input.source.trim().toLowerCase();
     const consentTextVersion = input.consentTextVersion.trim();
 
@@ -853,6 +886,7 @@ export class WorkerAppService {
       normalized_email: normalizedEmail,
       first_name: firstName,
       status: "subscribed",
+      lifecycle_status: "waitlisted",
       consented_at: timestamp,
       consent_text_version: consentTextVersion.slice(0, 64),
       source,
@@ -875,8 +909,12 @@ export class WorkerAppService {
     }
 
     const saved = data as MarketingContactRow;
-    await this.syncMarketingContactToBrevo(saved);
-    const refreshed = (await this.getMarketingContactByNormalizedEmail(normalizedEmail)) ?? saved;
+    await this.replaceMarketingContactRoleInterests(saved.id, roleInterests);
+    await this.syncMarketingContactToBrevo(saved, roleInterests);
+    const refreshed = (await this.getMarketingContactRecordByNormalizedEmail(normalizedEmail)) ?? {
+      contact: saved,
+      roleInterests
+    };
 
     return {
       accepted: true,
@@ -4051,6 +4089,61 @@ export class WorkerAppService {
     return ((data as MarketingContactRow[])[0] ?? null);
   }
 
+  private async getMarketingContactRecordByNormalizedEmail(normalizedEmail: string): Promise<MarketingContactRecord | null> {
+    const contact = await this.getMarketingContactByNormalizedEmail(normalizedEmail);
+    if (!contact) {
+      return null;
+    }
+
+    return {
+      contact,
+      roleInterests: await this.listMarketingContactRoleInterests(contact.id)
+    };
+  }
+
+  private async listMarketingContactRoleInterests(contactId: string): Promise<MarketingContactRoleInterest[]> {
+    const { data, error } = await this.client
+      .from("marketing_contact_role_interests")
+      .select("role")
+      .eq("marketing_contact_id", contactId);
+    if (error) {
+      throw problem(500, "marketing_contact_lookup_failed", "Marketing signup lookup failed.", error.message);
+    }
+
+    const roleSet = new Set<MarketingContactRoleInterest>();
+    for (const row of data as Array<Pick<MarketingContactRoleInterestRow, "role">>) {
+      if (row.role === "player" || row.role === "developer") {
+        roleSet.add(row.role);
+      }
+    }
+
+    return marketingRoleInterestOrder.filter((role) => roleSet.has(role));
+  }
+
+  private async replaceMarketingContactRoleInterests(
+    contactId: string,
+    roleInterests: readonly MarketingContactRoleInterest[]
+  ): Promise<void> {
+    const { error: deleteError } = await this.client
+      .from("marketing_contact_role_interests")
+      .delete()
+      .eq("marketing_contact_id", contactId);
+    if (deleteError) {
+      throw problem(500, "marketing_signup_failed", "Marketing signup could not be saved.", deleteError.message);
+    }
+
+    if (roleInterests.length === 0) {
+      return;
+    }
+
+    const { error: insertError } = await this.client
+      .from("marketing_contact_role_interests")
+      .insert(roleInterests.map((role) => ({ marketing_contact_id: contactId, role })));
+    if (insertError) {
+      throw problem(500, "marketing_signup_failed", "Marketing signup could not be saved.", insertError.message);
+    }
+  }
+
   private async sendSupportIssueEmail(input: {
     subject: string;
     text: string;
@@ -4222,7 +4315,10 @@ export class WorkerAppService {
     }
   }
 
-  private async syncMarketingContactToBrevo(contact: MarketingContactRow): Promise<void> {
+  private async syncMarketingContactToBrevo(
+    contact: MarketingContactRow,
+    roleInterests: readonly MarketingContactRoleInterest[]
+  ): Promise<void> {
     if (!this.context.brevoApiKey || !this.context.brevoSignupsListId) {
       await this.updateMarketingContactBrevoState(contact.id, {
         brevo_sync_state: "skipped",
@@ -4244,7 +4340,9 @@ export class WorkerAppService {
           email: contact.email,
           attributes: {
             FIRSTNAME: contact.first_name ?? undefined,
-            SOURCE: contact.source
+            SOURCE: contact.source,
+            BE_LIFECYCLE_STATUS: contact.lifecycle_status,
+            BE_ROLE_INTEREST: roleInterests.length > 0 ? [...roleInterests].sort().join(",") : "none"
           },
           listIds: [this.context.brevoSignupsListId],
           updateEnabled: true,
