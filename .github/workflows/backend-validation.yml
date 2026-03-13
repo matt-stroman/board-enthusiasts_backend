@@ -4,12 +4,15 @@ on:
   push:
     branches:
       - main
-      - feat/cloudflare-supabase-workers-stack-audit
-      - feat/cloudflare-supabase-workers-stack-audit-wave-wrapup
   pull_request:
     branches:
       - main
-      - feat/cloudflare-supabase-workers-stack-audit
+  workflow_dispatch:
+    inputs:
+      root_ref:
+        description: Optional root repo ref for integration validation
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -19,39 +22,91 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  standalone:
+    name: Validate Backend Standalone
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout backend branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Materialize standalone shared-package shims
+        run: |
+          mkdir -p ../packages
+          rsync -a ./.ci/root-workspace/packages/migration-contract/ ../packages/migration-contract/
+          cp ./.ci/root-workspace/tsconfig.base.json ../tsconfig.base.json
+
+      - name: Install backend dependencies
+        working-directory: apps/workers-api
+        run: npm install
+
+      - name: Run backend tests
+        working-directory: apps/workers-api
+        run: npm test
+
+      - name: Run backend typecheck
+        working-directory: apps/workers-api
+        run: npm run typecheck
+
+  integration:
     name: Validate Backend In Root Workspace
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    needs: standalone
 
     steps:
-      - name: Checkout backend PR branch
+      - name: Checkout backend branch
         uses: actions/checkout@v4
 
-      - name: Determine root repo ref
+      - name: Resolve root workspace ref
         id: root_ref
+        env:
+          INPUT_ROOT_REF: ${{ github.event.inputs.root_ref || '' }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            if [ "${{ github.base_ref }}" = "main" ] && { [ "${{ github.head_ref }}" = "feat/cloudflare-supabase-workers-stack-audit" ] || [ "${{ github.head_ref }}" = "feat/cloudflare-supabase-workers-stack-audit-wave-wrapup" ]; }; then
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
-            elif [ "${{ github.base_ref }}" = "main" ]; then
-              echo "root_ref=main" >> "$GITHUB_OUTPUT"
-            else
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            if [ "${{ github.ref_name }}" = "main" ]; then
-              echo "root_ref=main" >> "$GITHUB_OUTPUT"
-            else
-              echo "root_ref=feat/cloudflare-supabase-workers-conversion" >> "$GITHUB_OUTPUT"
-            fi
-          fi
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root_ref = (os.environ.get("INPUT_ROOT_REF") or "").strip()
+          reason = "workflow_dispatch input" if root_ref else "default main"
+
+          if not root_ref and os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+              event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+              for label in event.get("pull_request", {}).get("labels", []):
+                  name = (label.get("name") or "").strip()
+                  if not name.startswith("root-ref:"):
+                      continue
+
+                  candidate = name.split(":", 1)[1].strip()
+                  if candidate:
+                      root_ref = candidate
+                      reason = f"pull request label {name}"
+                      break
+
+          if not root_ref:
+              root_ref = "main"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"root_ref={root_ref}", file=output)
+              print(f"reason={reason}", file=output)
+          PY
+
+      - name: Summarize integration root ref
+        run: |
+          echo "Using root ref \`${{ steps.root_ref.outputs.root_ref }}\` (${{ steps.root_ref.outputs.reason }}) for composed backend validation." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clone root workspace
         run: |
           git clone --depth 1 --branch "${{ steps.root_ref.outputs.root_ref }}" --recurse-submodules https://github.com/matt-stroman/board-enthusiasts.git root-workspace
 
-      - name: Overlay backend PR contents into root workspace
+      - name: Overlay backend branch contents into root workspace
         run: |
           rm -rf root-workspace/backend
           mkdir -p root-workspace/backend
@@ -67,9 +122,13 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install workspace dependencies
+        working-directory: root-workspace
+        run: npm ci
+
       - name: Run maintained workspace typecheck
         working-directory: root-workspace
-        run: npm ci && npm run typecheck:migration
+        run: npm run typecheck:migration
 
       - name: Run Workers smoke coverage
         working-directory: root-workspace
