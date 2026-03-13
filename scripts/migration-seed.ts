@@ -11,7 +11,7 @@ import {
 
 interface SeedOptions {
   supabaseUrl: string;
-  serviceRoleKey: string;
+  secretKey: string;
   password: string;
   assetRoot: string;
   bucket: string;
@@ -79,7 +79,7 @@ function buildOptions(argv: string[]): SeedOptions {
 
   return {
     supabaseUrl: requireArg(args, "supabase-url"),
-    serviceRoleKey: requireArg(args, "service-role-key"),
+    secretKey: requireArg(args, "secret-key"),
     password: requireArg(args, "password"),
     assetRoot: requireArg(args, "asset-root"),
     bucket: (args["bucket"] ?? migrationMediaBucket).trim() || migrationMediaBucket
@@ -305,7 +305,7 @@ async function resetDemoData(client: SupabaseClient): Promise<void> {
 }
 
 async function seedOnce(options: SeedOptions): Promise<void> {
-  const client = createClient(options.supabaseUrl, options.serviceRoleKey, {
+  const client = createClient(options.supabaseUrl, options.secretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false

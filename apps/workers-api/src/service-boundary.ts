@@ -622,8 +622,8 @@ function mapPlayerCollectionMutation(titleId: string, included: boolean, already
 export interface Env {
   APP_ENV?: string;
   SUPABASE_URL?: string;
-  SUPABASE_ANON_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
+  SUPABASE_SECRET_KEY?: string;
   SUPABASE_MEDIA_BUCKET?: string;
   ALLOWED_WEB_ORIGINS?: string;
   TURNSTILE_SECRET_KEY?: string;
@@ -638,8 +638,8 @@ export interface Env {
 export interface WorkerAppContext {
   envName: string;
   supabaseUrl: string;
-  supabaseAnonKey: string;
-  supabaseServiceRoleKey: string;
+  supabasePublishableKey: string;
+  supabaseSecretKey: string;
   supabaseMediaBucket: string;
   allowedWebOrigins: string[];
   turnstileSecretKey: string | null;
@@ -735,7 +735,7 @@ function buildGenreDisplayNameFromInput(value: string): string {
 }
 
 function createServiceClient(context: WorkerAppContext): SupabaseClient {
-  return createClient(context.supabaseUrl, context.supabaseServiceRoleKey, {
+  return createClient(context.supabaseUrl, context.supabaseSecretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
@@ -745,8 +745,8 @@ function createServiceClient(context: WorkerAppContext): SupabaseClient {
 
 function parseContext(env: Env): WorkerAppContext {
   const supabaseUrl = (env.SUPABASE_URL ?? "").trim();
-  const supabaseAnonKey = (env.SUPABASE_ANON_KEY ?? "").trim();
-  const supabaseServiceRoleKey = (env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const supabasePublishableKey = (env.SUPABASE_PUBLISHABLE_KEY ?? "").trim();
+  const supabaseSecretKey = (env.SUPABASE_SECRET_KEY ?? "").trim();
   const parsedBrevoListId = Number((env.BREVO_SIGNUPS_LIST_ID ?? "").trim());
   const mailpitBaseUrl = (env.MAILPIT_BASE_URL ?? "").trim();
   const allowedWebOrigins = (env.ALLOWED_WEB_ORIGINS ?? "")
@@ -754,20 +754,20 @@ function parseContext(env: Env): WorkerAppContext {
     .map((candidate) => candidate.trim())
     .filter(Boolean);
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabasePublishableKey || !supabaseSecretKey) {
     throw problem(
       503,
       "backend_environment_incomplete",
       "Backend environment is incomplete.",
-      "Supabase URL, anon key, and service role key must be configured for the Workers API."
+      "Supabase URL, publishable key, and secret key must be configured for the Workers API."
     );
   }
 
   return {
     envName: env.APP_ENV?.trim() || "local",
     supabaseUrl,
-    supabaseAnonKey,
-    supabaseServiceRoleKey,
+    supabasePublishableKey,
+    supabaseSecretKey,
     supabaseMediaBucket: env.SUPABASE_MEDIA_BUCKET?.trim() || migrationMediaBucket,
     allowedWebOrigins,
     turnstileSecretKey: (env.TURNSTILE_SECRET_KEY ?? "").trim() || null,

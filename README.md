@@ -27,6 +27,33 @@ The root CLI is the supported developer entrypoint:
 - [`docs/developer-cli.md`](../docs/developer-cli.md)
 - [`docs/maintained-stack.md`](../docs/maintained-stack.md)
 
+## Environment Files
+
+This submodule does not own the maintained `.env` files for the stack.
+
+The supported environment files are root-managed under [`../config`](../config):
+
+- [`../config/.env.local.example`](../config/.env.local.example)
+- [`../config/.env.staging.example`](../config/.env.staging.example)
+- [`../config/.env.example`](../config/.env.example)
+
+For the hosted backend, the important runtime values are:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
+- `SUPABASE_MEDIA_BUCKET`
+- `TURNSTILE_SECRET_KEY`
+- `BREVO_API_KEY`
+- `BREVO_SIGNUPS_LIST_ID`
+
+Use the root CLI to inspect or bootstrap the root-managed files:
+
+```bash
+python ./scripts/dev.py env staging --copy-example
+python ./scripts/dev.py env staging --open
+```
+
 ## Repository Boundary
 
 This submodule owns backend-only runtime concerns for the maintained stack:
