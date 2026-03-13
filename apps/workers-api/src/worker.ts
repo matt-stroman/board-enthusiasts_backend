@@ -414,6 +414,12 @@ export default {
         return json(await service.uploadStudioMedia(token, studioLogoMatch[1]!, "logo", formData.get("media") as File | null), { headers: responseHeaders });
       }
 
+      const studioAvatarMatch = url.pathname.match(/^\/developer\/studios\/([^/]+)\/avatar-upload$/);
+      if (studioAvatarMatch && request.method === "POST") {
+        const formData = await request.formData();
+        return json(await service.uploadStudioMedia(token, studioAvatarMatch[1]!, "avatar", formData.get("media") as File | null), { headers: responseHeaders });
+      }
+
       const studioBannerMatch = url.pathname.match(/^\/developer\/studios\/([^/]+)\/banner-upload$/);
       if (studioBannerMatch && request.method === "POST") {
         const formData = await request.formData();

@@ -411,11 +411,21 @@ async function seedOnce(options: SeedOptions): Promise<void> {
       `studios/${studio.slug}/banner${path.extname(studio.bannerAssetPath).toLowerCase()}`,
       "image/svg+xml"
     );
+    const uploadedAvatar = await uploadAsset(
+      client,
+      options.bucket,
+      options.assetRoot,
+      studio.avatarAssetPath,
+      `studios/${studio.slug}/avatar${path.extname(studio.avatarAssetPath).toLowerCase()}`,
+      "image/svg+xml"
+    );
 
     studioRows.push({
       slug: studio.slug,
       display_name: studio.displayName,
       description: studio.description,
+      avatar_url: uploadedAvatar.publicUrl,
+      avatar_storage_path: uploadedAvatar.storagePath,
       logo_url: uploadedLogo.publicUrl,
       logo_storage_path: uploadedLogo.storagePath,
       banner_url: uploadedBanner.publicUrl,
