@@ -2,6 +2,9 @@ import { createClient, type SupabaseClient, type User as SupabaseAuthUser } from
 import {
   type AddModerationTitleReportMessageRequest,
   type AddTitleReportMessageRequest,
+  type MarketingContactStatus,
+  type MarketingSignupRequest,
+  type MarketingSignupResponse,
   type BoardProfileResponse,
   type CreateDeveloperTitleRequest,
   migrationMediaBucket,
@@ -87,6 +90,29 @@ type AppUserRow = {
 type AppUserRoleRow = {
   user_id: string;
   role: PlatformRole;
+};
+
+type MarketingContactRow = {
+  id: string;
+  email: string;
+  normalized_email: string;
+  first_name: string | null;
+  status: MarketingContactStatus;
+  consented_at: string;
+  consent_text_version: string;
+  source: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  brevo_contact_id: string | null;
+  brevo_sync_state: "pending" | "synced" | "skipped" | "failed";
+  brevo_synced_at: string | null;
+  brevo_last_error: string | null;
+  converted_app_user_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type StudioRow = {
@@ -321,6 +347,27 @@ function isAbsoluteUrl(value: string): boolean {
   }
 }
 
+function normalizeEmailAddress(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isValidEmailAddress(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function trimNullableString(value: string | null | undefined, maxLength: number): string | null {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.slice(0, maxLength);
+}
+
+function isValidMarketingSource(value: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
+}
+
 function validateStudioSlug(slug: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
@@ -553,6 +600,17 @@ function mapUserNotification(row: UserNotificationRow): UserNotification {
   };
 }
 
+function mapMarketingSignup(row: MarketingContactRow): MarketingSignupResponse["signup"] {
+  return {
+    email: row.email,
+    firstName: row.first_name,
+    status: row.status,
+    source: row.source,
+    consentedAt: row.consented_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function mapPlayerCollectionMutation(titleId: string, included: boolean, alreadyInRequestedState: boolean): PlayerCollectionMutationResponse {
   return {
     titleId,
@@ -567,6 +625,14 @@ export interface Env {
   SUPABASE_ANON_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_MEDIA_BUCKET?: string;
+  ALLOWED_WEB_ORIGINS?: string;
+  TURNSTILE_SECRET_KEY?: string;
+  BREVO_API_KEY?: string;
+  BREVO_SIGNUPS_LIST_ID?: string;
+  SUPPORT_REPORT_RECIPIENT?: string;
+  SUPPORT_REPORT_SENDER_EMAIL?: string;
+  SUPPORT_REPORT_SENDER_NAME?: string;
+  MAILPIT_BASE_URL?: string;
 }
 
 export interface WorkerAppContext {
@@ -575,6 +641,32 @@ export interface WorkerAppContext {
   supabaseAnonKey: string;
   supabaseServiceRoleKey: string;
   supabaseMediaBucket: string;
+  allowedWebOrigins: string[];
+  turnstileSecretKey: string | null;
+  brevoApiKey: string | null;
+  brevoSignupsListId: number | null;
+  supportReportRecipient: string;
+  supportReportSenderEmail: string;
+  supportReportSenderName: string;
+  mailpitBaseUrl: string | null;
+}
+
+interface SupportIssueReportRequest {
+  category: "email_signup";
+  firstName?: string | null;
+  email?: string | null;
+  pageUrl: string;
+  apiBaseUrl: string;
+  occurredAt: string;
+  errorMessage: string;
+  technicalDetails?: string | null;
+  userAgent?: string | null;
+  language?: string | null;
+  timeZone?: string | null;
+  viewportWidth?: number | null;
+  viewportHeight?: number | null;
+  screenWidth?: number | null;
+  screenHeight?: number | null;
 }
 
 interface AuthenticatedUser {
@@ -655,6 +747,12 @@ function parseContext(env: Env): WorkerAppContext {
   const supabaseUrl = (env.SUPABASE_URL ?? "").trim();
   const supabaseAnonKey = (env.SUPABASE_ANON_KEY ?? "").trim();
   const supabaseServiceRoleKey = (env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const parsedBrevoListId = Number((env.BREVO_SIGNUPS_LIST_ID ?? "").trim());
+  const mailpitBaseUrl = (env.MAILPIT_BASE_URL ?? "").trim();
+  const allowedWebOrigins = (env.ALLOWED_WEB_ORIGINS ?? "")
+    .split(",")
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
     throw problem(
@@ -670,7 +768,15 @@ function parseContext(env: Env): WorkerAppContext {
     supabaseUrl,
     supabaseAnonKey,
     supabaseServiceRoleKey,
-    supabaseMediaBucket: env.SUPABASE_MEDIA_BUCKET?.trim() || migrationMediaBucket
+    supabaseMediaBucket: env.SUPABASE_MEDIA_BUCKET?.trim() || migrationMediaBucket,
+    allowedWebOrigins,
+    turnstileSecretKey: (env.TURNSTILE_SECRET_KEY ?? "").trim() || null,
+    brevoApiKey: (env.BREVO_API_KEY ?? "").trim() || null,
+    brevoSignupsListId: Number.isInteger(parsedBrevoListId) && parsedBrevoListId > 0 ? parsedBrevoListId : null,
+    supportReportRecipient: (env.SUPPORT_REPORT_RECIPIENT ?? "").trim() || "support@boardenthusiasts.com",
+    supportReportSenderEmail: (env.SUPPORT_REPORT_SENDER_EMAIL ?? "").trim() || "noreply@boardenthusiasts.com",
+    supportReportSenderName: (env.SUPPORT_REPORT_SENDER_NAME ?? "").trim() || "Board Enthusiasts",
+    mailpitBaseUrl: mailpitBaseUrl || ((env.APP_ENV?.trim() || "local") === "local" ? "http://127.0.0.1:55424" : null)
   };
 }
 
@@ -705,6 +811,135 @@ export class WorkerAppService {
       supabaseUrlConfigured: true,
       mediaBucket: this.context.supabaseMediaBucket
     };
+  }
+
+  async createMarketingSignup(input: MarketingSignupRequest): Promise<MarketingSignupResponse> {
+    const email = input.email.trim();
+    const normalizedEmail = normalizeEmailAddress(email);
+    const firstName = trimNullableString(input.firstName, 100);
+    const source = input.source.trim().toLowerCase();
+    const consentTextVersion = input.consentTextVersion.trim();
+
+    if (!email) {
+      throw validationProblem({
+        email: ["Email is required."]
+      });
+    }
+
+    if (!isValidEmailAddress(normalizedEmail)) {
+      throw validationProblem({
+        email: ["Enter a valid email address."]
+      });
+    }
+
+    if (!isValidMarketingSource(source)) {
+      throw validationProblem({
+        source: ["Source must use lowercase letters, numbers, underscores, or hyphens."]
+      });
+    }
+
+    if (!consentTextVersion) {
+      throw validationProblem({
+        consentTextVersion: ["Consent text version is required."]
+      });
+    }
+
+    await this.verifyTurnstile(input.turnstileToken ?? null);
+
+    const existing = await this.getMarketingContactByNormalizedEmail(normalizedEmail);
+    const timestamp = new Date().toISOString();
+    const rowToUpsert = {
+      email,
+      normalized_email: normalizedEmail,
+      first_name: firstName,
+      status: "subscribed",
+      consented_at: timestamp,
+      consent_text_version: consentTextVersion.slice(0, 64),
+      source,
+      utm_source: trimNullableString(input.utmSource, 120),
+      utm_medium: trimNullableString(input.utmMedium, 120),
+      utm_campaign: trimNullableString(input.utmCampaign, 160),
+      utm_term: trimNullableString(input.utmTerm, 160),
+      utm_content: trimNullableString(input.utmContent, 160),
+      updated_at: timestamp
+    } satisfies Partial<MarketingContactRow>;
+
+    const { data, error } = await this.client
+      .from("marketing_contacts")
+      .upsert(rowToUpsert, { onConflict: "normalized_email" })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      throw problem(500, "marketing_signup_failed", "Marketing signup could not be saved.", error?.message ?? "Unknown database failure.");
+    }
+
+    const saved = data as MarketingContactRow;
+    await this.syncMarketingContactToBrevo(saved);
+    const refreshed = (await this.getMarketingContactByNormalizedEmail(normalizedEmail)) ?? saved;
+
+    return {
+      accepted: true,
+      duplicate: existing !== null,
+      signup: mapMarketingSignup(refreshed)
+    };
+  }
+
+  async reportSupportIssue(input: SupportIssueReportRequest): Promise<{ accepted: true }> {
+    if (input.category !== "email_signup") {
+      throw validationProblem({
+        category: ["Category must be 'email_signup'."]
+      });
+    }
+
+    const firstName = trimNullableString(input.firstName, 100);
+    const email = trimNullableString(input.email, 320);
+    const normalizedEmail = email ? normalizeEmailAddress(email) : null;
+
+    if (normalizedEmail && !isValidEmailAddress(normalizedEmail)) {
+      throw validationProblem({
+        email: ["Enter a valid email address when supplied."]
+      });
+    }
+
+    const pageUrl = trimNullableString(input.pageUrl, 1000);
+    const apiBaseUrl = trimNullableString(input.apiBaseUrl, 500);
+    const occurredAt = trimNullableString(input.occurredAt, 100);
+    const errorMessage = trimNullableString(input.errorMessage, 2000);
+    const technicalDetails = trimNullableString(input.technicalDetails, 4000);
+    if (!pageUrl || !apiBaseUrl || !occurredAt || !errorMessage) {
+      throw validationProblem({
+        body: ["Support issue reports require pageUrl, apiBaseUrl, occurredAt, and errorMessage."]
+      });
+    }
+
+    const lines = [
+      "Board Enthusiasts landing-page issue report",
+      "",
+      `Category: ${input.category}`,
+      `Occurred at: ${occurredAt}`,
+      `Page URL: ${pageUrl}`,
+      `API base URL: ${apiBaseUrl}`,
+      `First name: ${firstName ?? "(not provided)"}`,
+      `Email: ${normalizedEmail ?? "(not provided)"}`,
+      `Error: ${errorMessage}`,
+      `User agent: ${trimNullableString(input.userAgent, 1000) ?? "(not provided)"}`,
+      `Language: ${trimNullableString(input.language, 40) ?? "(not provided)"}`,
+      `Time zone: ${trimNullableString(input.timeZone, 100) ?? "(not provided)"}`,
+      `Viewport: ${input.viewportWidth ?? "?"}x${input.viewportHeight ?? "?"}`,
+      `Screen: ${input.screenWidth ?? "?"}x${input.screenHeight ?? "?"}`,
+      `Environment: ${this.context.envName}`,
+      `Technical details: ${technicalDetails ?? "(not provided)"}`,
+    ];
+
+    await this.sendSupportIssueEmail({
+      subject: "[Bug Report] Email signup issue",
+      text: lines.join("\n"),
+      replyToEmail: normalizedEmail,
+      replyToName: firstName,
+    });
+
+    return { accepted: true };
   }
 
   async getCurrentUserResponse(token: string): Promise<CurrentUserResponse> {
@@ -3801,5 +4036,262 @@ export class WorkerAppService {
     }
 
     return counts;
+  }
+
+  private async getMarketingContactByNormalizedEmail(normalizedEmail: string): Promise<MarketingContactRow | null> {
+    const { data, error } = await this.client
+      .from("marketing_contacts")
+      .select("*")
+      .eq("normalized_email", normalizedEmail)
+      .limit(1);
+    if (error) {
+      throw problem(500, "marketing_contact_lookup_failed", "Marketing signup lookup failed.", error.message);
+    }
+
+    return ((data as MarketingContactRow[])[0] ?? null);
+  }
+
+  private async sendSupportIssueEmail(input: {
+    subject: string;
+    text: string;
+    replyToEmail: string | null;
+    replyToName: string | null;
+  }): Promise<void> {
+    if (this.context.envName === "local" && this.context.mailpitBaseUrl) {
+      await this.sendSupportIssueEmailViaMailpit(input);
+      return;
+    }
+
+    if (this.context.brevoApiKey) {
+      await this.sendSupportIssueEmailViaBrevo(input);
+      return;
+    }
+
+    if (this.context.mailpitBaseUrl) {
+      await this.sendSupportIssueEmailViaMailpit(input);
+      return;
+    }
+
+    throw problem(
+      503,
+      "support_issue_transport_unavailable",
+      "Support issue reporting is temporarily unavailable.",
+      "No support issue delivery transport has been configured for this environment."
+    );
+  }
+
+  private async sendSupportIssueEmailViaMailpit(input: {
+    subject: string;
+    text: string;
+    replyToEmail: string | null;
+    replyToName: string | null;
+  }): Promise<void> {
+    const response = await fetch(`${this.context.mailpitBaseUrl!.replace(/\/$/, "")}/api/v1/send`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        From: {
+          Email: this.context.supportReportSenderEmail,
+          Name: this.context.supportReportSenderName,
+        },
+        To: [
+          {
+            Email: this.context.supportReportRecipient,
+            Name: "Board Enthusiasts Support",
+          },
+        ],
+        ReplyTo: input.replyToEmail
+          ? [
+              {
+                Email: input.replyToEmail,
+                Name: input.replyToName ?? undefined,
+              },
+            ]
+          : undefined,
+        Subject: input.subject,
+        Text: input.text,
+        Tags: ["support", "bug-report", "landing-page"],
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw problem(
+        502,
+        "support_issue_delivery_failed",
+        "Support issue reporting is temporarily unavailable.",
+        detail || `Mailpit returned ${response.status}.`
+      );
+    }
+  }
+
+  private async sendSupportIssueEmailViaBrevo(input: {
+    subject: string;
+    text: string;
+    replyToEmail: string | null;
+    replyToName: string | null;
+  }): Promise<void> {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "api-key": this.context.brevoApiKey!,
+      },
+      body: JSON.stringify({
+        sender: {
+          email: this.context.supportReportSenderEmail,
+          name: this.context.supportReportSenderName,
+        },
+        to: [
+          {
+            email: this.context.supportReportRecipient,
+            name: "Board Enthusiasts Support",
+          },
+        ],
+        replyTo: input.replyToEmail
+          ? {
+              email: input.replyToEmail,
+              name: input.replyToName ?? undefined,
+            }
+          : undefined,
+        subject: input.subject,
+        textContent: input.text,
+        tags: ["support", "bug-report", "landing-page"],
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw problem(
+        502,
+        "support_issue_delivery_failed",
+        "Support issue reporting is temporarily unavailable.",
+        detail || `Brevo returned ${response.status}.`
+      );
+    }
+  }
+
+  private async verifyTurnstile(token: string | null): Promise<void> {
+    const secretKey = this.context.turnstileSecretKey;
+    if (!secretKey) {
+      if (this.context.envName === "local") {
+        return;
+      }
+
+      throw problem(
+        503,
+        "turnstile_not_configured",
+        "Signup verification is temporarily unavailable.",
+        "Turnstile verification has not been configured for this environment."
+      );
+    }
+
+    const trimmedToken = (token ?? "").trim();
+    if (!trimmedToken) {
+      throw validationProblem({
+        turnstileToken: ["Signup verification is required."]
+      });
+    }
+
+    const payload = new URLSearchParams({
+      secret: secretKey,
+      response: trimmedToken
+    });
+
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      body: payload.toString()
+    });
+
+    if (!response.ok) {
+      throw problem(503, "turnstile_verification_failed", "Signup verification is temporarily unavailable.", "Turnstile verification request failed.");
+    }
+
+    const verification = (await response.json()) as { success?: boolean };
+    if (!verification.success) {
+      throw validationProblem({
+        turnstileToken: ["Signup verification failed. Please try again."]
+      });
+    }
+  }
+
+  private async syncMarketingContactToBrevo(contact: MarketingContactRow): Promise<void> {
+    if (!this.context.brevoApiKey || !this.context.brevoSignupsListId) {
+      await this.updateMarketingContactBrevoState(contact.id, {
+        brevo_sync_state: "skipped",
+        brevo_last_error: null,
+        brevo_synced_at: null
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("https://api.brevo.com/v3/contacts", {
+        method: "POST",
+        headers: {
+          "api-key": this.context.brevoApiKey,
+          accept: "application/json",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          email: contact.email,
+          attributes: {
+            FIRSTNAME: contact.first_name ?? undefined,
+            SOURCE: contact.source
+          },
+          listIds: [this.context.brevoSignupsListId],
+          updateEnabled: true,
+          emailBlacklisted: false
+        })
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        await this.updateMarketingContactBrevoState(contact.id, {
+          brevo_sync_state: "failed",
+          brevo_last_error: detail.trim().slice(0, 1000) || `Brevo returned ${response.status}.`,
+          brevo_synced_at: null
+        });
+        return;
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as { id?: number | string };
+      await this.updateMarketingContactBrevoState(contact.id, {
+        brevo_contact_id: payload.id ? String(payload.id) : contact.brevo_contact_id,
+        brevo_sync_state: "synced",
+        brevo_last_error: null,
+        brevo_synced_at: new Date().toISOString()
+      });
+    } catch (error) {
+      await this.updateMarketingContactBrevoState(contact.id, {
+        brevo_sync_state: "failed",
+        brevo_last_error: (error instanceof Error ? error.message : String(error)).slice(0, 1000),
+        brevo_synced_at: null
+      });
+    }
+  }
+
+  private async updateMarketingContactBrevoState(
+    contactId: string,
+    update: Partial<Pick<MarketingContactRow, "brevo_contact_id" | "brevo_sync_state" | "brevo_last_error" | "brevo_synced_at">>
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("marketing_contacts")
+      .update({
+        ...update,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", contactId);
+
+    if (error) {
+      throw problem(500, "marketing_contact_update_failed", "Marketing signup update failed.", error.message);
+    }
   }
 }

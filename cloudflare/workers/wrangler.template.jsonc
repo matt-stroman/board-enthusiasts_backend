@@ -7,10 +7,17 @@
     "APP_ENV": "staging",
     "SUPABASE_URL": "https://<project-ref>.supabase.co",
     "SUPABASE_ANON_KEY": "env(SUPABASE_ANON_KEY)",
-    "SUPABASE_MEDIA_BUCKET": "catalog-media"
+    "SUPABASE_MEDIA_BUCKET": "catalog-media",
+    "ALLOWED_WEB_ORIGINS": "http://localhost:5173,https://boardenthusiasts.com,https://www.boardenthusiasts.com,https://staging.boardenthusiasts.com",
+    "BREVO_SIGNUPS_LIST_ID": "<brevo-signups-list-id>",
+    "SUPPORT_REPORT_RECIPIENT": "support@boardenthusiasts.com",
+    "SUPPORT_REPORT_SENDER_EMAIL": "noreply@boardenthusiasts.com",
+    "SUPPORT_REPORT_SENDER_NAME": "Board Enthusiasts"
   },
   // Provision the service role key out of band:
   //   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+  //   wrangler secret put TURNSTILE_SECRET_KEY
+  //   wrangler secret put BREVO_API_KEY
   "observability": {
     "enabled": true
   }

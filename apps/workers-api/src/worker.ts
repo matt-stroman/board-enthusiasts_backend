@@ -1,6 +1,31 @@
-import type { UpdateUserProfileRequest, UpsertBoardProfileRequest } from "@board-enthusiasts/migration-contract";
-import { empty, json, ApiError, corsHeaders, validationProblem } from "./http";
-import { Env, WorkerAppService } from "./service-boundary";
+import type { MarketingSignupRequest, UpdateUserProfileRequest, UpsertBoardProfileRequest } from "@board-enthusiasts/migration-contract";
+import { empty, json, ApiError, corsHeaders, problem, validationProblem } from "./http";
+import { Env, WorkerAppService, type WorkerAppContext } from "./service-boundary";
+
+const localMarketingOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173"
+];
+
+interface SupportIssueReportRequest {
+  category: "email_signup";
+  firstName?: string | null;
+  email?: string | null;
+  pageUrl: string;
+  apiBaseUrl: string;
+  occurredAt: string;
+  errorMessage: string;
+  technicalDetails?: string | null;
+  userAgent?: string | null;
+  language?: string | null;
+  timeZone?: string | null;
+  viewportWidth?: number | null;
+  viewportHeight?: number | null;
+  screenWidth?: number | null;
+  screenHeight?: number | null;
+}
 
 function getBearerToken(request: Request): string {
   const header = request.headers.get("authorization") ?? request.headers.get("Authorization") ?? "";
@@ -15,6 +40,105 @@ async function readJson<T>(request: Request): Promise<T> {
       body: ["Request body must be valid JSON."]
     });
   }
+}
+
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value || !value.trim()) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedMarketingOrigins(context: WorkerAppContext): readonly string[] {
+  if (context.allowedWebOrigins.length > 0) {
+    return context.allowedWebOrigins;
+  }
+
+  if (context.envName === "local") {
+    return localMarketingOrigins;
+  }
+
+  throw problem(
+    503,
+    "marketing_origin_not_configured",
+    "Marketing signup is temporarily unavailable.",
+    "No approved web origins have been configured for marketing signup submissions."
+  );
+}
+
+function assertAllowedMarketingOrigin(request: Request, context: WorkerAppContext): void {
+  const requestOrigin = normalizeOrigin(request.headers.get("origin"));
+  const allowedOrigins = getAllowedMarketingOrigins(context);
+
+  if (!requestOrigin) {
+    throw problem(
+      403,
+      "marketing_origin_required",
+      "Origin header is required.",
+      "Marketing signups are only accepted from approved Board Enthusiasts web origins."
+    );
+  }
+
+  if (!allowedOrigins.includes(requestOrigin)) {
+    throw problem(
+      403,
+      "marketing_origin_forbidden",
+      "Origin is not allowed.",
+      "Marketing signups are only accepted from approved Board Enthusiasts web origins."
+    );
+  }
+}
+
+function assertAllowedSupportIssueOrigin(request: Request, context: WorkerAppContext): void {
+  const requestOrigin = normalizeOrigin(request.headers.get("origin"));
+  const allowedOrigins = getAllowedMarketingOrigins(context);
+
+  if (!requestOrigin) {
+    throw problem(
+      403,
+      "support_issue_origin_required",
+      "Origin header is required.",
+      "Support issue reports are only accepted from approved Board Enthusiasts web origins."
+    );
+  }
+
+  if (!allowedOrigins.includes(requestOrigin)) {
+    throw problem(
+      403,
+      "support_issue_origin_forbidden",
+      "Origin is not allowed.",
+      "Support issue reports are only accepted from approved Board Enthusiasts web origins."
+    );
+  }
+}
+
+export async function handleMarketingSignupRoute(
+  request: Request,
+  service: Pick<WorkerAppService, "createMarketingSignup" | "getContext">,
+  responseHeaders: HeadersInit
+): Promise<Response> {
+  assertAllowedMarketingOrigin(request, service.getContext());
+  return json(await service.createMarketingSignup(await readJson<MarketingSignupRequest>(request)), {
+    status: 201,
+    headers: responseHeaders
+  });
+}
+
+export async function handleSupportIssueRoute(
+  request: Request,
+  service: Pick<WorkerAppService, "reportSupportIssue" | "getContext">,
+  responseHeaders: HeadersInit
+): Promise<Response> {
+  assertAllowedSupportIssueOrigin(request, service.getContext());
+  return json(await service.reportSupportIssue(await readJson<SupportIssueReportRequest>(request)), {
+    status: 202,
+    headers: responseHeaders
+  });
 }
 
 export default {
@@ -43,6 +167,14 @@ export default {
 
       if (url.pathname === "/health/ready") {
         return json(await service.getReadyState(), { headers: responseHeaders });
+      }
+
+      if (request.method === "POST" && url.pathname === "/marketing/signups") {
+        return handleMarketingSignupRoute(request, service, responseHeaders);
+      }
+
+      if (request.method === "POST" && url.pathname === "/support/issues") {
+        return handleSupportIssueRoute(request, service, responseHeaders);
       }
 
       if (request.method === "GET" && url.pathname === "/genres") {

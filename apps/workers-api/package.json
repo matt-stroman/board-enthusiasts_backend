@@ -7,7 +7,8 @@
     "dev": "npm exec -- wrangler dev --config wrangler.jsonc src/worker.ts --ip 127.0.0.1 --port 8787",
     "build": "npm exec -- wrangler deploy --config wrangler.jsonc src/worker.ts --dry-run",
     "deploy": "npm exec -- wrangler deploy --config wrangler.jsonc src/worker.ts",
-    "typecheck": "npm exec -- tsc --project tsconfig.json"
+    "typecheck": "npm exec -- tsc --project tsconfig.json",
+    "test": "npm exec -- vitest run"
   },
   "dependencies": {
     "@board-enthusiasts/migration-contract": "file:../../../packages/migration-contract",
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250320.0",
     "typescript": "^5.8.0",
+    "vitest": "^3.2.4",
     "wrangler": "^4.11.0"
   }
 }
