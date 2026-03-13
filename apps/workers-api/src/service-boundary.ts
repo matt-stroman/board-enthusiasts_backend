@@ -9,7 +9,8 @@ import {
   type MarketingSignupResponse,
   type BoardProfileResponse,
   type CreateDeveloperTitleRequest,
-  migrationMediaBucket,
+  migrationMediaBuckets,
+  migrationMediaUploadPolicies,
   type AgeRatingAuthorityDefinition,
   type AgeRatingAuthorityListResponse,
   type CatalogPaging,
@@ -321,8 +322,17 @@ type WaveStateRow = {
 
 const roleOrder: PlatformRole[] = ["player", "developer", "verified_developer", "moderator", "admin", "super_admin"];
 const marketingRoleInterestOrder: MarketingContactRoleInterest[] = ["developer", "player"];
-const acceptedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
-const maxUploadBytes = 25 * 1024 * 1024;
+
+const uploadPolicyBySurface = {
+  avatar: migrationMediaUploadPolicies.avatars,
+  studioLogo: migrationMediaUploadPolicies.logoImages,
+  studioBanner: migrationMediaUploadPolicies.heroImages,
+  titleCard: migrationMediaUploadPolicies.cardImages,
+  titleHero: migrationMediaUploadPolicies.heroImages,
+  titleLogo: migrationMediaUploadPolicies.logoImages,
+} as const;
+
+type UploadSurface = keyof typeof uploadPolicyBySurface;
 
 function sortRoles(roles: PlatformRole[]): PlatformRole[] {
   return [...roles].sort((left, right) => roleOrder.indexOf(left) - roleOrder.indexOf(right));
@@ -656,7 +666,10 @@ export interface Env {
   SUPABASE_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
-  SUPABASE_MEDIA_BUCKET?: string;
+  SUPABASE_AVATARS_BUCKET?: string;
+  SUPABASE_CARD_IMAGES_BUCKET?: string;
+  SUPABASE_HERO_IMAGES_BUCKET?: string;
+  SUPABASE_LOGO_IMAGES_BUCKET?: string;
   ALLOWED_WEB_ORIGINS?: string;
   TURNSTILE_SECRET_KEY?: string;
   BREVO_API_KEY?: string;
@@ -672,7 +685,10 @@ export interface WorkerAppContext {
   supabaseUrl: string;
   supabasePublishableKey: string;
   supabaseSecretKey: string;
-  supabaseMediaBucket: string;
+  supabaseAvatarsBucket: string;
+  supabaseCardImagesBucket: string;
+  supabaseHeroImagesBucket: string;
+  supabaseLogoImagesBucket: string;
   allowedWebOrigins: string[];
   turnstileSecretKey: string | null;
   brevoApiKey: string | null;
@@ -800,7 +816,10 @@ function parseContext(env: Env): WorkerAppContext {
     supabaseUrl,
     supabasePublishableKey,
     supabaseSecretKey,
-    supabaseMediaBucket: env.SUPABASE_MEDIA_BUCKET?.trim() || migrationMediaBucket,
+    supabaseAvatarsBucket: env.SUPABASE_AVATARS_BUCKET?.trim() || migrationMediaBuckets.avatars,
+    supabaseCardImagesBucket: env.SUPABASE_CARD_IMAGES_BUCKET?.trim() || migrationMediaBuckets.cardImages,
+    supabaseHeroImagesBucket: env.SUPABASE_HERO_IMAGES_BUCKET?.trim() || migrationMediaBuckets.heroImages,
+    supabaseLogoImagesBucket: env.SUPABASE_LOGO_IMAGES_BUCKET?.trim() || migrationMediaBuckets.logoImages,
     allowedWebOrigins,
     turnstileSecretKey: (env.TURNSTILE_SECRET_KEY ?? "").trim() || null,
     brevoApiKey: (env.BREVO_API_KEY ?? "").trim() || null,
@@ -841,7 +860,7 @@ export class WorkerAppService {
       environment: this.context.envName,
       stackStatus: readinessState.get("status") ?? "unknown",
       supabaseUrlConfigured: true,
-      mediaBucket: this.context.supabaseMediaBucket
+      mediaBucket: this.context.supabaseCardImagesBucket
     };
   }
 
@@ -1839,18 +1858,20 @@ export class WorkerAppService {
     const user = await this.requireUser(token);
     const studio = await this.getStudioById(studioId);
     await this.requireStudioAccess(user.appUser.id, studio.id);
-    const validatedFile = this.requireUploadFile(file);
+    const uploadSurface = kind === "logo" ? "studioLogo" : "studioBanner";
+    const validatedFile = this.requireUploadFile(file, uploadSurface);
+    const bucket = this.getStorageBucketForSurface(uploadSurface);
 
     const extension = this.extensionForMimeType(validatedFile.type);
     const storagePath = `studios/${studio.slug}/${kind}${extension}`;
     const { error: uploadError } = await this.client.storage
-      .from(this.context.supabaseMediaBucket)
+      .from(bucket)
       .upload(storagePath, validatedFile, { contentType: validatedFile.type, upsert: true });
     if (uploadError) {
       throw problem(500, "studio_media_upload_failed", "Studio media upload failed.", uploadError.message);
     }
 
-    const publicUrl = this.client.storage.from(this.context.supabaseMediaBucket).getPublicUrl(storagePath).data.publicUrl;
+    const publicUrl = this.client.storage.from(bucket).getPublicUrl(storagePath).data.publicUrl;
     const updatePayload =
       kind === "logo"
         ? {
@@ -2184,18 +2205,20 @@ export class WorkerAppService {
     const user = await this.requireUser(token);
     const title = await this.requireDeveloperTitleAccess(user.appUser.id, titleId);
     this.validateTitleMediaRole(mediaRole);
-    const validatedFile = this.requireUploadFile(file);
+    const uploadSurface = mediaRole === "card" ? "titleCard" : mediaRole === "hero" ? "titleHero" : "titleLogo";
+    const validatedFile = this.requireUploadFile(file, uploadSurface);
+    const bucket = this.getStorageBucketForSurface(uploadSurface);
     const studio = await this.getStudioById(title.studio_id);
     const extension = this.extensionForMimeType(validatedFile.type);
     const storagePath = `titles/${studio.slug}/${title.slug}/${mediaRole}${extension}`;
     const { error: uploadError } = await this.client.storage
-      .from(this.context.supabaseMediaBucket)
+      .from(bucket)
       .upload(storagePath, validatedFile, { contentType: validatedFile.type, upsert: true });
     if (uploadError) {
       throw problem(500, "title_media_upload_failed", "Title media upload failed.", uploadError.message);
     }
 
-    const publicUrl = this.client.storage.from(this.context.supabaseMediaBucket).getPublicUrl(storagePath).data.publicUrl;
+    const publicUrl = this.client.storage.from(bucket).getPublicUrl(storagePath).data.publicUrl;
     return this.upsertTitleMediaAsset(token, titleId, mediaRole, {
       sourceUrl: publicUrl,
       altText: altText?.trim() ? altText.trim() : null,
@@ -2862,20 +2885,57 @@ export class WorkerAppService {
     }
   }
 
-  private requireUploadFile(file: File | null): File {
+  private getStorageBucketForSurface(surface: UploadSurface): string {
+    switch (surface) {
+      case "avatar":
+        return this.context.supabaseAvatarsBucket;
+      case "studioLogo":
+      case "titleLogo":
+        return this.context.supabaseLogoImagesBucket;
+      case "studioBanner":
+      case "titleHero":
+        return this.context.supabaseHeroImagesBucket;
+      case "titleCard":
+        return this.context.supabaseCardImagesBucket;
+    }
+  }
+
+  private describeAcceptedMimeTypes(surface: UploadSurface): string {
+    const acceptedMimeTypes = uploadPolicyBySurface[surface].acceptedMimeTypes;
+    const labels = acceptedMimeTypes.map((mimeType) => {
+      switch (mimeType) {
+        case "image/jpeg":
+          return "JPEG";
+        case "image/png":
+          return "PNG";
+        case "image/webp":
+          return "WEBP";
+        case "image/svg+xml":
+          return "SVG";
+        default:
+          return mimeType;
+      }
+    });
+
+    return labels.join(", ");
+  }
+
+  private requireUploadFile(file: File | null, surface: UploadSurface): File {
+    const policy = uploadPolicyBySurface[surface];
+    const acceptedImageMimeTypes = new Set(policy.acceptedMimeTypes);
     if (!file) {
       throw validationProblem({
         media: ["A media file is required."]
       });
     }
-    if (!acceptedImageMimeTypes.has(file.type)) {
+    if (![...acceptedImageMimeTypes].some((mimeType) => mimeType === file.type)) {
       throw validationProblem({
-        media: ["Media image format must be JPEG, PNG, WEBP, GIF, or SVG."]
+        media: [`Media image format must be ${this.describeAcceptedMimeTypes(surface)}.`]
       });
     }
-    if (file.size > maxUploadBytes) {
+    if (file.size > policy.maxUploadBytes) {
       throw validationProblem({
-        media: ["Media image size must be 25 MB or less."]
+        media: [`Media image size must be ${Math.round(policy.maxUploadBytes / 1024)} KB or less.`]
       });
     }
 
@@ -2890,8 +2950,6 @@ export class WorkerAppService {
         return ".jpg";
       case "image/webp":
         return ".webp";
-      case "image/gif":
-        return ".gif";
       case "image/svg+xml":
         return ".svg";
       default:

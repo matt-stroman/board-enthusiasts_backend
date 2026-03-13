@@ -43,12 +43,17 @@ For the hosted backend, the important runtime values are:
 - `SUPABASE_PROJECT_REF`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
-- `SUPABASE_MEDIA_BUCKET`
+- `SUPABASE_AVATARS_BUCKET`
+- `SUPABASE_CARD_IMAGES_BUCKET`
+- `SUPABASE_HERO_IMAGES_BUCKET`
+- `SUPABASE_LOGO_IMAGES_BUCKET`
 - `TURNSTILE_SECRET_KEY`
 - `BREVO_API_KEY`
 - `BREVO_SIGNUPS_LIST_ID`
 
 For the default hosted Supabase domain, the root CLI can infer `SUPABASE_URL` from `SUPABASE_PROJECT_REF`. Keep `SUPABASE_URL` explicit for local development and any custom-domain setup.
+
+Storage bucket policy and the current media bucket inventory are documented in [docs/storage-buckets.md](./docs/storage-buckets.md).
 
 Use the root CLI to inspect or bootstrap the root-managed files:
 
