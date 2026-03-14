@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -185,6 +186,14 @@ async function ensureBucket(
   }
 }
 
+export function buildSupabaseReadyProbeHeaders(serviceRoleKey: string): Record<string, string> {
+  return {
+    apikey: serviceRoleKey,
+    authorization: `Bearer ${serviceRoleKey}`,
+    accept: "application/json"
+  };
+}
+
 async function waitForSupabaseReady(client: SupabaseClient): Promise<void> {
   const timeoutAt = Date.now() + 180_000;
   let lastError = "Supabase HTTP services are still starting.";
@@ -210,13 +219,9 @@ async function waitForSupabaseReady(client: SupabaseClient): Promise<void> {
   }
 
   while (Date.now() < timeoutAt) {
-    const sharedHeaders = {
-      apikey: serviceRoleKey,
-      authorization: `Bearer ${serviceRoleKey}`,
-      accept: "application/json"
-    };
+    const sharedHeaders = buildSupabaseReadyProbeHeaders(serviceRoleKey);
     const [authError, restError, storageError] = await Promise.all([
-      probe(`${supabaseUrl}/auth/v1/health`),
+      probe(`${supabaseUrl}/auth/v1/health`, sharedHeaders),
       probe(`${supabaseUrl}/rest/v1/migration_wave_state?select=key&limit=1`, sharedHeaders),
       probe(`${supabaseUrl}/storage/v1/bucket`, sharedHeaders)
     ]);
@@ -878,8 +883,10 @@ async function seed(): Promise<void> {
   }
 }
 
-seed().catch((error: unknown) => {
-  const message = formatErrorMessage(error);
-  console.error(message);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seed().catch((error: unknown) => {
+    const message = formatErrorMessage(error);
+    console.error(message);
+    process.exitCode = 1;
+  });
+}
