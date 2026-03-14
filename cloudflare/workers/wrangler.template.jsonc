@@ -3,6 +3,9 @@
   "name": "board-enthusiasts-api-staging",
   "main": "../../apps/workers-api/src/worker.ts",
   "compatibility_date": "2025-03-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [],
   "vars": {
     "APP_ENV": "staging",
     "SUPABASE_URL": "env(SUPABASE_URL)",
