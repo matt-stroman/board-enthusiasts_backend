@@ -13,8 +13,14 @@ function escapeHtml(value: string): string {
 }
 
 function formatRoleInterests(roleInterests: readonly MarketingContactRoleInterest[]): string {
+  const labels: Record<MarketingContactRoleInterest, string> = {
+    developer: "creating third-party content for Board",
+    player: "following new Board games and apps",
+  };
+
   return [...roleInterests]
     .sort()
+    .map((role) => labels[role] ?? role)
     .join(", ");
 }
 
@@ -70,8 +76,17 @@ export function renderMarketingSignupWelcomeEmail(input: {
         <td align="center" style="padding: 32px 16px;">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 640px;">
             <tr>
-              <td style="padding-bottom: 16px; color: #9fb2d8; font-size: 13px; letter-spacing: 0.24em; text-transform: uppercase;">
-                Board Enthusiasts
+              <td style="padding-bottom: 16px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td valign="middle" style="padding-right: 12px;">
+                      <img src="${brandSiteUrl}/favicon_sm.png" alt="Board Enthusiasts" width="34" height="34" style="display: block; border: 0; width: 34px; height: 34px; border-radius: 8px;" />
+                    </td>
+                    <td valign="middle" style="color: #9fb2d8; font-size: 13px; letter-spacing: 0.24em; text-transform: uppercase;">
+                      Board Enthusiasts
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
             <tr>
@@ -124,7 +139,7 @@ export function renderMarketingSignupWelcomeEmail(input: {
                                 </td>
                                 <td valign="top">
                                   <div style="color: #f8fafc; font-size: 18px; font-weight: 700;">Board Enthusiasts</div>
-                                  <div style="padding-top: 4px; color: #9fb2d8; font-size: 14px; line-height: 1.6;">Players and Developers who &#9825; Board</div>
+                                  <div style="padding-top: 4px; color: #9fb2d8; font-size: 14px; line-height: 1.6;">For Board Players and Builders</div>
                                 </td>
                               </tr>
                             </table>
